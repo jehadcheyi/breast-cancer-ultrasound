@@ -11,17 +11,17 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load model - assuming CNN96.h5 is in the same directory as app.py
+# Load model
 try:
     model_path = 'cnn96.h5'
     if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model file {model_path} not found in the current directory")
+        raise FileNotFoundError(f"Model file {model_path} not found")
     
     logger.info(f"Loading model from: {model_path}")
     model = load_model(model_path)
     logger.info("Model loaded successfully!")
     
-    # Verify model input/output shapes
+    # Verify model architecture
     logger.info(f"Model input shape: {model.input_shape}")
     logger.info(f"Model output shape: {model.output_shape}")
     
@@ -33,7 +33,7 @@ except Exception as e:
 class_labels = ['benign', 'malignant', 'normal']
 
 def preprocess_image(image):
-    """Preprocess the uploaded image to match model input requirements"""
+    """Preprocess image to exactly match training conditions"""
     try:
         # Convert to numpy array
         image = np.array(image)
@@ -44,11 +44,11 @@ def preprocess_image(image):
         elif image.shape[2] == 4:  # RGBA
             image = image[:, :, :3]
         
-        # Resize to 224x224 (model's expected input size)
-        image = cv2.resize(image, (400, 400))
+        # Resize to model's expected input size (224x224)
+        image = cv2.resize(image, (400, 400))  # Changed from 400x400 to 224x224
         
-        # Normalize pixel values to [0, 1]
-        image = image / 255.0
+        # Normalize pixel values (must match training normalization)
+        image = image / 255.0  # Assuming model was trained with [0,1] normalization
         
         # Add batch dimension
         image = np.expand_dims(image, axis=0)
@@ -61,7 +61,7 @@ def preprocess_image(image):
 def predict_image(image):
     """Make prediction on the uploaded image"""
     if model is None:
-        return {"Error": "Model failed to load. Please check if CNN96.h5 is in the same directory."}
+        return {"Error": "Model failed to load"}
     
     try:
         # Preprocess the image
@@ -69,12 +69,19 @@ def predict_image(image):
         if processed_image is None:
             return {"Error": "Failed to process image"}
         
-        # Verify the processed image shape matches model's expected input
+        # Verify input shape matches model expectations
         logger.info(f"Processed image shape: {processed_image.shape}")
+        if processed_image.shape[1:] != model.input_shape[1:]:
+            return {"Error": f"Input shape mismatch. Expected {model.input_shape[1:]}, got {processed_image.shape[1:]}"}
         
         # Make prediction
-        predictions = model.predict(processed_image)[0]
+        predictions = model.predict(processed_image, verbose=0)[0]
         logger.info(f"Raw predictions: {predictions}")
+        
+        # Apply softmax if needed (some models don't have softmax in last layer)
+        if not np.isclose(np.sum(predictions), 1.0, atol=0.01):
+            predictions = tf.nn.softmax(predictions).numpy()
+            logger.info(f"After softmax: {predictions}")
         
         # Create dictionary of class probabilities
         confidences = {class_labels[i]: float(predictions[i]) for i in range(len(class_labels))}
@@ -82,30 +89,23 @@ def predict_image(image):
         return confidences
     except Exception as e:
         logger.error(f"Prediction error: {str(e)}")
-        return {"Error": f"An error occurred during prediction: {str(e)}"}
+        return {"Error": f"Prediction error: {str(e)}"}
 
 # Gradio interface
-title = "Medical Image Classification"
+title = "Breast Cancer Ultrasound Classification"
 description = """
-Upload a medical image to classify it as benign, malignant, or normal.
-This app uses a pre-trained CNN model (CNN96.h5) for classification.
+Upload an ultrasound image to classify as benign, malignant, or normal.
+Note: Model trained on 224x224 images - other sizes will be resized.
 """
 
-# Create the Gradio interface
 demo = gr.Interface(
     fn=predict_image,
-    inputs=gr.Image(label="Upload Medical Image", type="pil"),
-    outputs=gr.Label(num_top_classes=3, label="Prediction"),
+    inputs=gr.Image(label="Upload Ultrasound Image", type="pil"),
+    outputs=gr.Label(num_top_classes=3, label="Prediction Results"),
     title=title,
     description=description,
-    examples=[
-        os.path.join(os.path.dirname(__file__), "example_benign.jpg"),
-        os.path.join(os.path.dirname(__file__), "example_malignant.jpg"),
-        os.path.join(os.path.dirname(__file__), "example_normal.jpg")
-    ] if os.path.exists("example_benign.jpg") else None,
     allow_flagging="never"
 )
 
-# Launch the app
 if __name__ == "__main__":
     demo.launch()

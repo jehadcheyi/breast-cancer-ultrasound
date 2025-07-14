@@ -5,6 +5,7 @@ from tensorflow.keras.models import load_model
 from PIL import Image, ImageEnhance
 import cv2
 import os
+import glob
 import logging
 
 # Set up logging
@@ -45,9 +46,6 @@ def sharpness_enhancement(image):
 def brightness_enhancement(image):
     enhancer = ImageEnhance.Brightness(image)
     return enhancer.enhance(0.5)
-
-def rescale_image(image, target_size=(500, 500)):
-    return image.resize(target_size)
 
 def preprocess_for_segmentation(image):
     try:
@@ -157,7 +155,7 @@ def analyze_image(image):
         logger.error(f"Analysis error: {str(e)}")
         return {"Error": f"Analysis failed: {str(e)}"}, None, None
 
-# Gradio interface
+# Interface
 title = "Breast Cancer Ultrasound Analysis"
 description = """
 1. Segments the ultrasound image (green highlights lesion)
@@ -176,6 +174,16 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             image_input = gr.Image(label="Upload Ultrasound Image", type="pil")
             analyze_btn = gr.Button("Analyze", variant="primary")
 
+            gr.Markdown("### Or choose an example image:")
+            example_gallery = gr.Gallery(label="Example Images", show_label=False, columns=3, rows=1, height=160)
+            example_gallery.style(grid=[3], object_fit="contain")
+
+            # Load examples dynamically
+            example_paths = sorted(glob.glob("examples/*.png"))  # Adjust extension as needed
+            example_gallery.value = example_paths
+
+            example_gallery.select(fn=lambda img: Image.open(img), inputs=[], outputs=image_input)
+
         with gr.Column():
             gr.Markdown("### Results")
             cls_output = gr.Label(label="Diagnosis Confidence")
@@ -186,8 +194,6 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         inputs=image_input,
         outputs=[cls_output, seg_output, gr.Image(visible=False)]
     )
-
-
 
 if __name__ == "__main__":
     demo.launch()

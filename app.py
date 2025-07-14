@@ -129,14 +129,14 @@ def create_segmentation_overlay(original_image, mask):
 
 def analyze_image(image):
     if seg_model is None or cls_model is None:
-        return {"Error": "Models failed to load"}, None, None
+        return {"Error": "Models failed to load"}, None
 
     try:
         original_image = np.array(image)
 
         seg_input, original_shape = preprocess_for_segmentation(original_image)
         if seg_input is None:
-            return {"Error": "Segmentation preprocessing failed"}, None, None
+            return {"Error": "Segmentation preprocessing failed"}, None
 
         mask = seg_model.predict(seg_input, verbose=0)[0]
         mask = cv2.resize(mask.squeeze(), (original_shape[1], original_shape[0]))
@@ -151,34 +151,35 @@ def analyze_image(image):
         # Create green overlay
         overlay = create_segmentation_overlay(original_image, mask)
         if overlay is None:
-            return {"Error": "Overlay creation failed"}, None, None
+            return {"Error": "Overlay creation failed"}, None
 
         # Classification
         cls_input = preprocess_for_classification(overlay)
         if cls_input is None:
-            return {"Error": "Classification preprocessing failed"}, overlay, None
+            return {"Error": "Classification preprocessing failed"}, None
 
         predictions = cls_model.predict(cls_input, verbose=0)[0]
         cls_result = {
-            'benign': float(predictions[0]),
-            'malignant': float(predictions[1]),
-            'normal': float(predictions[2])
+            'Diagnosis': {
+                'benign': float(predictions[0]),
+                'malignant': float(predictions[1]),
+                'normal': float(predictions[2])
+            },
+            'Segmented Image': overlay
         }
 
-        return cls_result, overlay, None
+        return cls_result
 
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}")
-        return {"Error": f"Analysis failed: {str(e)}"}, None, None
+        return {"Error": f"Analysis failed: {str(e)}"}, None
 
 # Gradio interface
 title = "Breast Cancer Ultrasound Analysis"
 description = """
-1. Segments the ultrasound image (green highlights lesion)
-2. Classifies the image with green overlay
-Models:
-- U-Net: 224x224 grayscale input
-- CNN96: 400x400 RGB with overlay
+Analyzes breast ultrasound images by:
+1. Segmenting the lesion (shown in green overlay)
+2. Classifying the image (benign/malignant/normal)
 """
 
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
@@ -203,15 +204,23 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             analyze_btn = gr.Button("Analyze", variant="primary")
 
         with gr.Column():
-            with gr.Tab("Classification Results"):
-                cls_output = gr.Label(label="Diagnosis Confidence")
-            with gr.Tab("Segmentation"):
-                seg_output = gr.Image(label="Image with Green Lesion Overlay")
+            # Combined output showing both classification and segmentation
+            output = gr.JSON(label="Analysis Results")
+            output_image = gr.Image(label="Segmented Image with Diagnosis")
+
+    def display_results(result):
+        if "Error" in result:
+            return result, None
+        else:
+            # Format the diagnosis percentages
+            diagnosis = result['Diagnosis']
+            formatted_diagnosis = {k: f"{v*100:.2f}%" for k, v in diagnosis.items()}
+            return {"Diagnosis": formatted_diagnosis}, result['Segmented Image']
 
     analyze_btn.click(
         fn=analyze_image,
         inputs=image_input,
-        outputs=[cls_output, seg_output, gr.Image(visible=False)]
+        outputs=[output, output_image]
     )
 
 if __name__ == "__main__":

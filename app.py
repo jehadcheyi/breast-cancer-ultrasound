@@ -1,87 +1,76 @@
-import tensorflow as tf
-from tensorflow.keras import layers
-import os
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
 import gradio as gr
+import numpy as np
+import tensorflow as tf
 from tensorflow.keras.models import load_model
+from PIL import Image
+import cv2
+import os
 
-# === EncoderBlock for loading UNet ===
-class EncoderBlock(tf.keras.layers.Layer):
-    def __init__(self, filters, kernel_size=3, pool=True, **kwargs):
-        super(EncoderBlock, self).__init__(**kwargs)
-        self.conv1 = tf.keras.layers.Conv2D(filters, kernel_size, padding="same", activation="relu")
-        self.bn1 = tf.keras.layers.BatchNormalization()
-        self.conv2 = tf.keras.layers.Conv2D(filters, kernel_size, padding="same", activation="relu")
-        self.bn2 = tf.keras.layers.BatchNormalization()
-        self.pool = tf.keras.layers.MaxPooling2D(pool_size=(2, 2)) if pool else None
+# Load your pre-trained model
+model = load_model('CNN96.h5')
 
-    def call(self, inputs):
-        x = self.conv1(inputs)
-        x = self.bn1(x)
-        x = self.conv2(x)
-        x = self.bn2(x)
-        if self.pool:
-            return self.pool(x)
-        return x
+# Define class labels
+class_labels = ['benign', 'malignant', 'normal']
 
-# === Load Model ===
-print("Loading segmentation model...")
-unet_model = load_model("unet.h5", custom_objects={"EncoderBlock": EncoderBlock})
-print("Model loaded successfully!")
-
-# === Constants ===
-SEG_SIZE = (224, 224)
-
-# === Processing Functions ===
 def preprocess_image(image):
-    image = cv2.resize(image, SEG_SIZE)
-    image = image.astype(np.float32) / 255.0
-    return np.expand_dims(image, axis=0)
+    """Preprocess the uploaded image to match model input requirements"""
+    # Convert to numpy array
+    image = np.array(image)
+    
+    # Convert to RGB if it's grayscale
+    if len(image.shape) == 2:
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    elif image.shape[2] == 4:
+        image = image[:, :, :3]
+    
+    # Resize to 224x224
+    image = cv2.resize(image, (224, 224))
+    
+    # Normalize pixel values to [0, 1]
+    image = image / 255.0
+    
+    # Add batch dimension
+    image = np.expand_dims(image, axis=0)
+    
+    return image
 
-def get_mask(image):
-    preprocessed = preprocess_image(image)
-    mask = unet_model.predict(preprocessed, verbose=0)[0]
-    return (mask[..., 0] > 0.5).astype(np.uint8)
+def predict_image(image):
+    """Make prediction on the uploaded image"""
+    # Preprocess the image
+    processed_image = preprocess_image(image)
+    
+    # Make prediction
+    predictions = model.predict(processed_image)[0]
+    
+    # Create dictionary of class probabilities
+    confidences = {class_labels[i]: float(predictions[i]) for i in range(len(class_labels))}
+    
+    return confidences
 
-def analyze_image(image):
-    try:
-        image = image.astype('uint8')
-        resized = cv2.resize(image, SEG_SIZE)
-        mask = get_mask(resized)
+# Gradio interface
+title = "Medical Image Classification"
+description = """
+Upload a medical image (224x224) to classify it as benign, malignant, or normal.
+This app uses a pre-trained CNN model (CNN96.h5) for classification.
+"""
 
-        # === Visualization ===
-        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
-        
-        # Original image
-        axs[0].imshow(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
-        axs[0].set_title("Original Ultrasound")
-        axs[0].axis('off')
-        
-        # Segmentation mask
-        axs[1].imshow(mask, cmap='gray')
-        axs[1].set_title("Segmentation Mask")
-        axs[1].axis('off')
-        
-        plt.tight_layout()
+examples = [
+    ["example_benign.jpg"],
+    ["example_malignant.jpg"],
+    ["example_normal.jpg"]
+]
 
-        return "Segmentation completed successfully.", fig
+# Create the Gradio interface
+demo = gr.Interface(
+    fn=predict_image,
+    inputs=gr.Image(label="Upload Medical Image", type="pil"),
+    outputs=gr.Label(num_top_classes=3, label="Prediction"),
+    title=title,
+    description=description,
+    examples=examples,
+    allow_flagging="never"
+)
 
-    except Exception as e:
-        return f"<div style='color:red'><b>Error:</b> {str(e)}</div>", None
-
-# === Gradio UI ===
-with gr.Blocks(title="Breast Ultrasound Segmentation") as demo:
-    with gr.Row():
-        with gr.Column():
-            gr.Markdown("## Upload Breast Ultrasound Image")
-            image_input = gr.Image(type="numpy", label="Input Ultrasound")
-            analyze_btn = gr.Button("Segment", variant="primary")
-        with gr.Column():
-            status_html = gr.HTML()
-            output_plot = gr.Plot()
-
-    analyze_btn.click(fn=analyze_image, inputs=image_input, outputs=[status_html, output_plot])
-
-demo.launch(share=True)
+# Launch the app
+if __name__ == "__main__":
+    demo.launch()

@@ -56,7 +56,7 @@ def preprocess_for_classification(image):
     try:
         # Convert to numpy array and resize
         image = np.array(image)
-        image = cv2.resize(image, (224, 224))
+        image = cv2.resize(image, (400, 400))
         
         # Convert to RGB if needed
         if len(image.shape) == 2:  # Grayscale
@@ -77,7 +77,7 @@ def preprocess_for_segmentation(image):
         # Convert to numpy array and resize
         image = np.array(image)
         original_shape = image.shape[:2]
-        image = cv2.resize(image, (256, 256))
+        image = cv2.resize(image, (224, 224))
         
         # Convert to grayscale and normalize
         if len(image.shape) == 3:

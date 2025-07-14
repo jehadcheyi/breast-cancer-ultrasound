@@ -42,7 +42,7 @@ def preprocess_image(image):
             image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         
         # Resize and normalize
-        image = cv2.resize(image, (256, 256))
+        image = cv2.resize(image, (224, 224))
         image = image.astype('float32') / 255.0
         
         # Add batch and channel dimensions

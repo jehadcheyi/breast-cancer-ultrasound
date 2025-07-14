@@ -5,11 +5,7 @@ from tensorflow.keras.models import load_model
 from PIL import Image, ImageEnhance
 import cv2
 import os
-import glob
 import logging
-
-# Suppress TensorFlow logs (optional)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +30,9 @@ except Exception as e:
     seg_model = None
     cls_model = None
 
+# Labels
+class_labels = ['benign', 'malignant', 'normal']
+
 # Enhancement functions
 def fuzzy_enhancement(image):
     enhancer = ImageEnhance.Contrast(image)
@@ -47,14 +46,23 @@ def brightness_enhancement(image):
     enhancer = ImageEnhance.Brightness(image)
     return enhancer.enhance(0.5)
 
+def rescale_image(image, target_size=(500, 500)):
+    return image.resize(target_size)
+
 def preprocess_for_segmentation(image):
     try:
         image = np.array(image)
         original_shape = image.shape[:2]
+
         if len(image.shape) == 3:
             image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-        image = cv2.resize(image, (224, 224)).astype('float32') / 255.0
-        image = np.expand_dims(image, axis=(0, -1))
+
+        image = cv2.resize(image, (224, 224))
+        image = image.astype('float32') / 255.0
+
+        image = np.expand_dims(image, axis=-1)
+        image = np.expand_dims(image, axis=0)
+
         return image, original_shape
     except Exception as e:
         logger.error(f"Segmentation preprocessing error: {str(e)}")
@@ -63,12 +71,16 @@ def preprocess_for_segmentation(image):
 def preprocess_for_classification(image):
     try:
         image = np.array(image)
+
         if len(image.shape) == 2:
             image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
         elif image.shape[2] == 4:
             image = image[:, :, :3]
+
         image = Image.fromarray(image).resize((400, 400))
-        image = np.array(image).astype('float32') / 255.0 - 0.5
+        image = np.array(image)
+        image = (image.astype('float32') / 255.0) - 0.5
+
         return np.expand_dims(image, axis=0)
     except Exception as e:
         logger.error(f"Classification preprocessing error: {str(e)}")
@@ -83,11 +95,13 @@ def create_segmentation_overlay(original_image, mask):
         mask_cv = np.array(mask_pil)
         contours, _ = cv2.findContours(mask_cv, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         overlay_mask = np.zeros_like(mask_cv)
-        cv2.drawContours(overlay_mask, contours, -1, color=255, thickness=-1)
+        cv2.drawContours(overlay_mask, contours, -1, color=255, thickness=-1)  # fill
         mask_pil = Image.fromarray(overlay_mask)
 
+        # Green overlay
         green_mask = Image.new("RGB", original_pil.size, (0, 255, 0))
         green_mask.putalpha(mask_pil.convert("L"))
+
         overlayed = Image.alpha_composite(original_pil.convert("RGBA"), green_mask)
 
         overlayed = fuzzy_enhancement(overlayed)
@@ -102,8 +116,10 @@ def create_segmentation_overlay(original_image, mask):
 def analyze_image(image):
     if seg_model is None or cls_model is None:
         return {"Error": "Models failed to load"}, None, None
+
     try:
         original_image = np.array(image)
+
         seg_input, original_shape = preprocess_for_segmentation(original_image)
         if seg_input is None:
             return {"Error": "Segmentation preprocessing failed"}, None, None
@@ -111,17 +127,19 @@ def analyze_image(image):
         mask = seg_model.predict(seg_input, verbose=0)[0]
         mask = cv2.resize(mask.squeeze(), (original_shape[1], original_shape[0]))
 
-        # Post-process mask
+        # Threshold + morphological refinement
         _, binary_mask = cv2.threshold(mask, 0.5, 1, cv2.THRESH_BINARY)
         kernel = np.ones((5, 5), np.uint8)
         binary_mask = cv2.morphologyEx(binary_mask.astype('uint8'), cv2.MORPH_CLOSE, kernel)
         binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
         mask = binary_mask
 
+        # Create green overlay
         overlay = create_segmentation_overlay(original_image, mask)
         if overlay is None:
             return {"Error": "Overlay creation failed"}, None, None
 
+        # Classification
         cls_input = preprocess_for_classification(overlay)
         if cls_input is None:
             return {"Error": "Classification preprocessing failed"}, overlay, None
@@ -134,11 +152,12 @@ def analyze_image(image):
         }
 
         return cls_result, overlay, None
+
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}")
         return {"Error": f"Analysis failed: {str(e)}"}, None, None
 
-# Interface
+# Gradio interface
 title = "Breast Cancer Ultrasound Analysis"
 description = """
 1. Segments the ultrasound image (green highlights lesion)
@@ -157,20 +176,11 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             image_input = gr.Image(label="Upload Ultrasound Image", type="pil")
             analyze_btn = gr.Button("Analyze", variant="primary")
 
-            gr.Markdown("### Or choose an example image:")
-            example_gallery = gr.Gallery(label="Example Images", show_label=False, columns=3, rows=1, height=160)
-
-            # Load example images
-            example_paths = sorted(glob.glob("example/*.png"))  # or .jpg
-            example_gallery.value = example_paths
-
-            # Load clicked example into image_input
-            example_gallery.select(fn=lambda img: Image.open(img), inputs=[], outputs=image_input)
-
         with gr.Column():
-            gr.Markdown("### Results")
-            cls_output = gr.Label(label="Diagnosis Confidence")
-            seg_output = gr.Image(label="Image with Green Lesion Overlay")
+            with gr.Tab("Classification Results"):
+                cls_output = gr.Label(label="Diagnosis Confidence")
+            with gr.Tab("Segmentation"):
+                seg_output = gr.Image(label="Image with Green Lesion Overlay")
 
     analyze_btn.click(
         fn=analyze_image,

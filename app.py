@@ -1,148 +1,63 @@
-import tensorflow as tf
-from tensorflow.keras import layers
-
-class EncoderBlock(tf.keras.layers.Layer):
-    def __init__(self, filters, rate=0.0, pooling=True, **kwargs):
-        super(EncoderBlock, self).__init__(**kwargs)
-        self.conv1 = layers.Conv2D(filters, kernel_size=3, padding="same", activation="relu")
-        self.bn1 = layers.BatchNormalization()
-        self.dropout1 = layers.Dropout(rate)
-
-        self.conv2 = layers.Conv2D(filters, kernel_size=3, padding="same", activation="relu")
-        self.bn2 = layers.BatchNormalization()
-        self.dropout2 = layers.Dropout(rate)
-
-        self.pool = layers.MaxPooling2D(pool_size=(2, 2)) if pooling else None
-
-    def call(self, inputs, training=False):
-        x = self.conv1(inputs)
-        x = self.bn1(x, training=training)
-        x = self.dropout1(x, training=training)
-
-        x = self.conv2(x)
-        x = self.bn2(x, training=training)
-        x = self.dropout2(x, training=training)
-
-        if self.pool:
-            return self.pool(x)
-        return x
-
-
-
-import os
 import cv2
 import numpy as np
 import tensorflow as tf
-import matplotlib.pyplot as plt
-from PIL import Image
 import gradio as gr
 from tensorflow.keras.models import load_model
+import matplotlib.pyplot as plt
 
-# === EncoderBlock for loading UNet ===
-class EncoderBlock(tf.keras.layers.Layer):
-    def __init__(self, filters, kernel_size=3, pool=True, **kwargs):
-        super(EncoderBlock, self).__init__(**kwargs)
-        self.conv1 = tf.keras.layers.Conv2D(filters, kernel_size, padding="same", activation="relu")
-        self.bn1 = tf.keras.layers.BatchNormalization()
-        self.conv2 = tf.keras.layers.Conv2D(filters, kernel_size, padding="same", activation="relu")
-        self.bn2 = tf.keras.layers.BatchNormalization()
-        self.pool = tf.keras.layers.MaxPooling2D(pool_size=(2, 2)) if pool else None
+# Load standard UNet model (no custom objects)
+unet_model = load_model("unet.h5")
+print("UNet model loaded successfully.")
 
-    def call(self, inputs):
-        x = self.conv1(inputs)
-        x = self.bn1(x)
-        x = self.conv2(x)
-        x = self.bn2(x)
-        if self.pool:
-            return self.pool(x)
-        return x
+# Image input size expected by the model
+IMG_SIZE = (256, 256)
 
-# === Load Models ===
-print("Loading models...")
-unet_model = load_model("unet.h5", custom_objects={"EncoderBlock": EncoderBlock})
-cnn_model = load_model("cnn96.h5")
-print("Models loaded successfully!")
-
-# === Constants ===
-SEG_SIZE = (224, 224)
-CLS_SIZE = (224, 224)
-CLASSES = ["Benign", "Malignant", "Normal"]
-COLORS = {"Benign": "#4CAF50", "Malignant": "#F44336", "Normal": "#2196F3"}
-
-# === Processing Functions ===
-def preprocess_image(image):
-    image = cv2.resize(image, SEG_SIZE)
-    image = image.astype(np.float32) / 255.0
-    return np.expand_dims(image, axis=0)
-
-def get_mask(image):
-    preprocessed = preprocess_image(image)
-    mask = unet_model.predict(preprocessed, verbose=0)[0]
-    return (mask[..., 0] > 0.5).astype(np.uint8)
-
-def extract_lesion(original, mask):
-    masked = cv2.bitwise_and(original, original, mask=mask)
-    x, y, w, h = cv2.boundingRect(mask)
-    cropped = masked[y:y+h, x:x+w]
-    if cropped.size == 0:
-        raise ValueError("No lesion detected.")
-    resized = cv2.resize(cropped, CLS_SIZE)
-    normalized = resized.astype(np.float32) / 255.0
-    return np.expand_dims(normalized, axis=0), cropped
-
-def analyze_image(image):
+def segment_image(image):
     try:
-        image = image.astype('uint8')
-        resized = cv2.resize(image, SEG_SIZE)
+        # Resize and normalize input
+        resized = cv2.resize(image, IMG_SIZE)
+        input_arr = resized.astype(np.float32) / 255.0
+        input_arr = np.expand_dims(input_arr, axis=0)  # (1, H, W, 3)
 
-        mask = get_mask(resized)
-        input_for_cls, cropped = extract_lesion(resized, mask)
+        # Predict mask
+        pred_mask = unet_model.predict(input_arr, verbose=0)[0]
+        mask = (pred_mask[..., 0] > 0.5).astype(np.uint8)
 
-        pred = cnn_model.predict(input_for_cls, verbose=0)[0]
-        pred_idx = np.argmax(pred)
-        label = CLASSES[pred_idx]
-        confidence = pred[pred_idx] * 100
-        color = COLORS[label]
+        # Resize mask to match original image size
+        mask_resized = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
 
-        # === Visualization ===
+        # Overlay: red mask
+        overlay = image.copy()
+        overlay[mask_resized == 1] = [255, 0, 0]
+
+        # Plot all results
         fig, axs = plt.subplots(1, 3, figsize=(18, 6))
-        axs[0].imshow(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
-        axs[0].set_title("Original Ultrasound")
-        axs[0].axis('off')
+        axs[0].imshow(image)
+        axs[0].set_title("Original Image")
+        axs[0].axis("off")
 
-        axs[1].imshow(mask, cmap='gray')
-        axs[1].set_title("Segmentation Mask")
-        axs[1].axis('off')
+        axs[1].imshow(mask_resized, cmap="gray")
+        axs[1].set_title("Predicted Mask")
+        axs[1].axis("off")
 
-        axs[2].imshow(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
-        axs[2].set_title("Segmented Lesion")
-        axs[2].axis('off')
+        axs[2].imshow(overlay)
+        axs[2].set_title("Overlay")
+        axs[2].axis("off")
+
         plt.tight_layout()
-
-        # === Diagnosis Box ===
-        html = f"""
-        <div style="border: 2px solid {color}; border-radius: 10px; padding: 20px; font-family: Arial;">
-            <h2 style="color: {color};">Diagnosis: {label}</h2>
-            <p style="font-size: 16px;">Confidence: <strong>{confidence:.2f}%</strong></p>
-        </div>
-        """
-
-        return html, fig
+        return fig
 
     except Exception as e:
-        return f"<div style='color:red'><b>Error:</b> {str(e)}</div>", None
+        print(f"Error: {e}")
+        return f"<div style='color:red'><b>Error:</b> {str(e)}</div>"
 
-# === Gradio UI ===
-with gr.Blocks(title="Breast Ultrasound Analysis") as demo:
-    with gr.Row():
-        with gr.Column():
-            gr.Markdown("## Upload Breast Ultrasound Image")
-            image_input = gr.Image(type="numpy", label="Input Ultrasound")
-            analyze_btn = gr.Button("Analyze", variant="primary")
-        with gr.Column():
-            diagnosis_html = gr.HTML()
-            output_plot = gr.Plot()
+# Gradio UI
+with gr.Blocks(title="Breast Ultrasound Segmentation") as demo:
+    gr.Markdown("## Upload a Breast Ultrasound Image for Segmentation")
+    image_input = gr.Image(type="numpy", label="Input Image")
+    btn = gr.Button("Segment")
+    plot_output = gr.Plot()
 
-    analyze_btn.click(fn=analyze_image, inputs=image_input, outputs=[diagnosis_html, output_plot])
+    btn.click(fn=segment_image, inputs=image_input, outputs=plot_output)
 
 demo.launch(share=True)

@@ -1,3 +1,34 @@
+import tensorflow as tf
+from tensorflow.keras import layers
+
+class EncoderBlock(tf.keras.layers.Layer):
+    def __init__(self, filters, rate=0.0, pooling=True, **kwargs):
+        super(EncoderBlock, self).__init__(**kwargs)
+        self.conv1 = layers.Conv2D(filters, kernel_size=3, padding="same", activation="relu")
+        self.bn1 = layers.BatchNormalization()
+        self.dropout1 = layers.Dropout(rate)
+
+        self.conv2 = layers.Conv2D(filters, kernel_size=3, padding="same", activation="relu")
+        self.bn2 = layers.BatchNormalization()
+        self.dropout2 = layers.Dropout(rate)
+
+        self.pool = layers.MaxPooling2D(pool_size=(2, 2)) if pooling else None
+
+    def call(self, inputs, training=False):
+        x = self.conv1(inputs)
+        x = self.bn1(x, training=training)
+        x = self.dropout1(x, training=training)
+
+        x = self.conv2(x)
+        x = self.bn2(x, training=training)
+        x = self.dropout2(x, training=training)
+
+        if self.pool:
+            return self.pool(x)
+        return x
+
+
+
 import os
 import cv2
 import numpy as np

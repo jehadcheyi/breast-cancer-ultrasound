@@ -45,7 +45,7 @@ def preprocess_image(image):
             image = image[:, :, :3]
         
         # Resize to 224x224 (model's expected input size)
-        image = cv2.resize(image, (224, 224))
+        image = cv2.resize(image, (400, 400))
         
         # Normalize pixel values to [0, 1]
         image = image / 255.0

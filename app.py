@@ -177,10 +177,11 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             analyze_btn = gr.Button("Analyze", variant="primary")
 
         with gr.Column():
-            with gr.Tab("Classification Results"):
-                cls_output = gr.Label(label="Diagnosis Confidence")
-            with gr.Tab("Segmentation"):
-                seg_output = gr.Image(label="Image with Green Lesion Overlay")
+            gr.Markdown("### Results")
+        with gr.Row():
+            cls_output = gr.Label(label="Diagnosis Confidence")
+            seg_output = gr.Image(label="Image with Green Lesion Overlay")
+
 
     analyze_btn.click(
         fn=analyze_image,

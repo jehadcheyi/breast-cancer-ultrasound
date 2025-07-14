@@ -23,7 +23,7 @@ classes = {
     'classification_names': {
     
         0: 'Benign',
-        1: 'Malignant'
+        1: 'Malignant',
         2: 'Normal',
     }
 }

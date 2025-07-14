@@ -1,6 +1,4 @@
-gradio
-tensorflow
-opencv-python
-Pillow
-matplotlib
-numpy
+tensorflow>=2.12.0
+pillow>=9.0.0
+opencv-python-headless>=4.5.0
+gradio>=3.0.0

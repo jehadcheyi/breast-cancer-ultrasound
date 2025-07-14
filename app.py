@@ -46,7 +46,7 @@ def preprocess_image(image):
             image = image[:, :, :3]
         
         # Resize to model's expected input size (224x224)
-        image = Image.fromarray(image).resize((224, 224))
+        image = Image.fromarray(image).resize((400, 400))
         image = np.array(image)
         
         # Normalize pixel values EXACTLY like during training

@@ -6,46 +6,73 @@ from PIL import Image
 import cv2
 import os
 
-# Load your pre-trained model
-model = load_model('cnn96.h5')
+# Try to load the model with error handling
+try:
+    # First try loading from current directory
+    model_path = 'cnn.h5'
+    if not os.path.exists(model_path):
+        # If not found, try loading from a models directory
+        model_path = 'models/CNN96.h5'
+        if not os.path.exists(model_path):
+            raise FileNotFoundError("Model file not found in either root or models directory")
+    
+    model = load_model(model_path)
+    print("Model loaded successfully!")
+except Exception as e:
+    print(f"Error loading model: {e}")
+    # Provide instructions if model fails to load
+    model = None
 
 # Define class labels
 class_labels = ['benign', 'malignant', 'normal']
 
 def preprocess_image(image):
     """Preprocess the uploaded image to match model input requirements"""
-    # Convert to numpy array
-    image = np.array(image)
-    
-    # Convert to RGB if it's grayscale
-    if len(image.shape) == 2:
-        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-    elif image.shape[2] == 4:
-        image = image[:, :, :3]
-    
-    # Resize to 224x224
-    image = cv2.resize(image, (224, 224))
-    
-    # Normalize pixel values to [0, 1]
-    image = image / 255.0
-    
-    # Add batch dimension
-    image = np.expand_dims(image, axis=0)
-    
-    return image
+    try:
+        # Convert to numpy array
+        image = np.array(image)
+        
+        # Convert to RGB if it's grayscale
+        if len(image.shape) == 2:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        elif image.shape[2] == 4:
+            image = image[:, :, :3]
+        
+        # Resize to 224x224
+        image = cv2.resize(image, (224, 224))
+        
+        # Normalize pixel values to [0, 1]
+        image = image / 255.0
+        
+        # Add batch dimension
+        image = np.expand_dims(image, axis=0)
+        
+        return image
+    except Exception as e:
+        print(f"Error preprocessing image: {e}")
+        return None
 
 def predict_image(image):
     """Make prediction on the uploaded image"""
-    # Preprocess the image
-    processed_image = preprocess_image(image)
+    if model is None:
+        return {"Error": "Model failed to load. Please check if CNN96.h5 is uploaded correctly."}
     
-    # Make prediction
-    predictions = model.predict(processed_image)[0]
-    
-    # Create dictionary of class probabilities
-    confidences = {class_labels[i]: float(predictions[i]) for i in range(len(class_labels))}
-    
-    return confidences
+    try:
+        # Preprocess the image
+        processed_image = preprocess_image(image)
+        if processed_image is None:
+            return {"Error": "Failed to process image"}
+        
+        # Make prediction
+        predictions = model.predict(processed_image)[0]
+        
+        # Create dictionary of class probabilities
+        confidences = {class_labels[i]: float(predictions[i]) for i in range(len(class_labels))}
+        
+        return confidences
+    except Exception as e:
+        print(f"Prediction error: {e}")
+        return {"Error": f"An error occurred during prediction: {str(e)}"}
 
 # Gradio interface
 title = "Medical Image Classification"
@@ -54,12 +81,6 @@ Upload a medical image (224x224) to classify it as benign, malignant, or normal.
 This app uses a pre-trained CNN model (CNN96.h5) for classification.
 """
 
-examples = [
-    ["example_benign.jpg"],
-    ["example_malignant.jpg"],
-    ["example_normal.jpg"]
-]
-
 # Create the Gradio interface
 demo = gr.Interface(
     fn=predict_image,
@@ -67,7 +88,6 @@ demo = gr.Interface(
     outputs=gr.Label(num_top_classes=3, label="Prediction"),
     title=title,
     description=description,
-    examples=examples,
     allow_flagging="never"
 )
 

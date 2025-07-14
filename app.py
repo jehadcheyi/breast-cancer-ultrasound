@@ -75,7 +75,7 @@ def preprocess_for_segmentation(image):
         return None, None
 
 def preprocess_for_classification(image):
-    """Preprocess segmented overlay image for CNN96 classification"""
+    """Preprocess segmented lesion for CNN96 classification (400x400 RGB)"""
     try:
         image = np.array(image)
         
@@ -121,8 +121,33 @@ def create_segmentation_overlay(original_image, mask):
         logger.error(f"Overlay creation error: {str(e)}")
         return None
 
+def extract_lesion_region(original_image, mask):
+    """Extract just the lesion area from original image"""
+    try:
+        # Convert mask to binary
+        binary_mask = (mask > 0.5).astype(np.uint8)
+        
+        # Apply mask to original image
+        if len(original_image.shape) == 2:  # Grayscale
+            lesion = cv2.bitwise_and(original_image, original_image, mask=binary_mask)
+            lesion = cv2.cvtColor(lesion, cv2.COLOR_GRAY2RGB)
+        else:  # Color
+            lesion = cv2.bitwise_and(original_image, original_image, mask=binary_mask[:,:,None])
+        
+        # Create background (black)
+        background = np.zeros_like(original_image)
+        if len(background.shape) == 2:
+            background = cv2.cvtColor(background, cv2.COLOR_GRAY2RGB)
+        
+        # Combine to get just the lesion on black background
+        lesion_only = cv2.add(background, lesion)
+        return lesion_only
+    except Exception as e:
+        logger.error(f"Lesion extraction error: {str(e)}")
+        return None
+
 def analyze_image(image):
-    """Full analysis pipeline: segmentation -> classification of overlay"""
+    """Full analysis pipeline: segmentation -> lesion extraction -> classification"""
     if seg_model is None or cls_model is None:
         return {"Error": "Models failed to load"}, None, None
     
@@ -137,15 +162,20 @@ def analyze_image(image):
         mask = seg_model.predict(seg_input, verbose=0)[0]
         mask = cv2.resize(mask.squeeze(), (original_shape[1], original_shape[0]))
         
-        # Create overlay (with green lesion)
+        # Create overlay visualization
         overlay = create_segmentation_overlay(original_image, mask)
         if overlay is None:
             return {"Error": "Overlay creation failed"}, None, None
         
-        # Step 2: Classification on the overlay image (with green lesion)
-        cls_input = preprocess_for_classification(overlay)
+        # Step 2: Extract JUST the lesion area
+        lesion_only = extract_lesion_region(original_image, mask)
+        if lesion_only is None:
+            return {"Error": "Lesion extraction failed"}, overlay, None
+        
+        # Step 3: Classify the extracted lesion
+        cls_input = preprocess_for_classification(lesion_only)
         if cls_input is None:
-            return {"Error": "Classification preprocessing failed"}, overlay, None
+            return {"Error": "Classification preprocessing failed"}, overlay, lesion_only
             
         predictions = cls_model.predict(cls_input, verbose=0)[0]
         cls_result = {
@@ -154,7 +184,7 @@ def analyze_image(image):
             'normal': float(predictions[2])
         }
         
-        return cls_result, overlay, None
+        return cls_result, overlay, lesion_only
         
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}")
@@ -164,11 +194,12 @@ def analyze_image(image):
 title = "Breast Cancer Ultrasound Analysis"
 description = """
 1. Segments the ultrasound image (green highlights lesion)
-2. Classifies the segmented image (with green lesion)
+2. Extracts just the lesion area
+3. Classifies only the segmented lesion
 
 Models:
 - Segmentation: U-Net (224x224 grayscale input)
-- Classification: CNN96 (400x400 RGB input of segmented image)
+- Classification: CNN96 (400x400 RGB input of lesion only)
 """
 
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
@@ -182,14 +213,16 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         
         with gr.Column():
             with gr.Tab("Classification Results"):
-                cls_output = gr.Label(label="Diagnosis Confidence")
+                cls_output = gr.Label(label="Lesion Diagnosis")
             with gr.Tab("Segmentation"):
-                seg_output = gr.Image(label="Segmented Image (Green = Lesion)")
+                seg_output = gr.Image(label="Segmentation Overlay")
+            with gr.Tab("Lesion Area"):
+                lesion_output = gr.Image(label="Extracted Lesion")
     
     analyze_btn.click(
         fn=analyze_image,
         inputs=image_input,
-        outputs=[cls_output, seg_output, gr.Image(visible=False)]  # Hide third output
+        outputs=[cls_output, seg_output, lesion_output]
     )
 
 if __name__ == "__main__":

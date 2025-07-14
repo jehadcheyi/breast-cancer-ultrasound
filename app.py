@@ -54,13 +54,13 @@ def preprocess_image(image, model_type='classification'):
         
         # Resize based on model type
         if model_type == 'classification':
-            image = Image.fromarray(image).resize((224, 224))
+            image = Image.fromarray(image).resize((400, 400))
             image = np.array(image)
             # Normalize for classification model
             image = (image.astype('float32') / 255.0) - 0.5
         else:  # segmentation
             original_shape = image.shape[:2]
-            image = Image.fromarray(image).resize((256, 256))  # Common UNet input size
+            image = Image.fromarray(image).resize((224, 224))  # Common UNet input size
             image = np.array(image)
             # Normalize for segmentation model
             image = image.astype('float32') / 255.0

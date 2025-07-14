@@ -161,7 +161,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             example_gallery = gr.Gallery(label="Example Images", show_label=False, columns=3, rows=1, height=160)
 
             # Load example images
-            example_paths = sorted(glob.glob("examples/*.png"))  # or .jpg
+            example_paths = sorted(glob.glob("example/*.png"))  # or .jpg
             example_gallery.value = example_paths
 
             # Load clicked example into image_input

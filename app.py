@@ -24,7 +24,7 @@ def rescale_image(image, target_size=(500, 500)):
 
 # Load the pre-trained U-Net model
 try:
-    model = load_model('UNET_model.h5')
+    model = load_model('unet.h5')
     print("Segmentation model loaded successfully!")
 except Exception as e:
     print(f"Error loading model: {e}")

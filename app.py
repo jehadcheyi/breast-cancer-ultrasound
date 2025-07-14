@@ -33,20 +33,6 @@ except Exception as e:
 # Labels
 class_labels = ['benign', 'malignant', 'normal']
 
-# Automatically load example images from 'example' folder
-example_images = []
-example_folder = 'example'
-
-if os.path.exists(example_folder):
-    for filename in os.listdir(example_folder):
-        if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
-            filepath = os.path.join(example_folder, filename)
-            # Use filename without extension as label
-            label = os.path.splitext(filename)[0].replace('_', ' ').title()
-            example_images.append([filepath, label])
-else:
-    logger.warning(f"Example folder '{example_folder}' not found. No example images will be available.")
-
 # Enhancement functions
 def fuzzy_enhancement(image):
     enhancer = ImageEnhance.Contrast(image)
@@ -129,14 +115,14 @@ def create_segmentation_overlay(original_image, mask):
 
 def analyze_image(image):
     if seg_model is None or cls_model is None:
-        return {"Error": "Models failed to load"}, None
+        return {"Error": "Models failed to load"}, None, None
 
     try:
         original_image = np.array(image)
 
         seg_input, original_shape = preprocess_for_segmentation(original_image)
         if seg_input is None:
-            return {"Error": "Segmentation preprocessing failed"}, None
+            return {"Error": "Segmentation preprocessing failed"}, None, None
 
         mask = seg_model.predict(seg_input, verbose=0)[0]
         mask = cv2.resize(mask.squeeze(), (original_shape[1], original_shape[0]))
@@ -151,35 +137,34 @@ def analyze_image(image):
         # Create green overlay
         overlay = create_segmentation_overlay(original_image, mask)
         if overlay is None:
-            return {"Error": "Overlay creation failed"}, None
+            return {"Error": "Overlay creation failed"}, None, None
 
         # Classification
         cls_input = preprocess_for_classification(overlay)
         if cls_input is None:
-            return {"Error": "Classification preprocessing failed"}, None
+            return {"Error": "Classification preprocessing failed"}, overlay, None
 
         predictions = cls_model.predict(cls_input, verbose=0)[0]
         cls_result = {
-            'Diagnosis': {
-                'benign': float(predictions[0]),
-                'malignant': float(predictions[1]),
-                'normal': float(predictions[2])
-            },
-            'Segmented Image': overlay
+            'benign': float(predictions[0]),
+            'malignant': float(predictions[1]),
+            'normal': float(predictions[2])
         }
 
-        return cls_result
+        return cls_result, overlay, None
 
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}")
-        return {"Error": f"Analysis failed: {str(e)}"}, None
+        return {"Error": f"Analysis failed: {str(e)}"}, None, None
 
 # Gradio interface
 title = "Breast Cancer Ultrasound Analysis"
 description = """
-Analyzes breast ultrasound images by:
-1. Segmenting the lesion (shown in green overlay)
-2. Classifying the image (benign/malignant/normal)
+1. Segments the ultrasound image (green highlights lesion)
+2. Classifies the image with green overlay
+Models:
+- U-Net: 224x224 grayscale input
+- CNN96: 400x400 RGB with overlay
 """
 
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
@@ -189,38 +174,18 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
     with gr.Row():
         with gr.Column():
             image_input = gr.Image(label="Upload Ultrasound Image", type="pil")
-            
-            # Add example gallery if we found any images
-            if example_images:
-                gr.Examples(
-                    examples=example_images,
-                    inputs=image_input,
-                    label="Click on any example image below to analyze it",
-                    examples_per_page=3
-                )
-            else:
-                gr.Markdown("⚠️ No example images found in the 'example' folder")
-            
             analyze_btn = gr.Button("Analyze", variant="primary")
 
         with gr.Column():
-            # Combined output showing both classification and segmentation
-            output = gr.JSON(label="Analysis Results")
-            output_image = gr.Image(label="Segmented Image with Diagnosis")
-
-    def display_results(result):
-        if "Error" in result:
-            return result, None
-        else:
-            # Format the diagnosis percentages
-            diagnosis = result['Diagnosis']
-            formatted_diagnosis = {k: f"{v*100:.2f}%" for k, v in diagnosis.items()}
-            return {"Diagnosis": formatted_diagnosis}, result['Segmented Image']
+            with gr.Tab("Classification Results"):
+                cls_output = gr.Label(label="Diagnosis Confidence")
+            with gr.Tab("Segmentation"):
+                seg_output = gr.Image(label="Image with Green Lesion Overlay")
 
     analyze_btn.click(
         fn=analyze_image,
         inputs=image_input,
-        outputs=[output, output_image]
+        outputs=[cls_output, seg_output, gr.Image(visible=False)]
     )
 
 if __name__ == "__main__":

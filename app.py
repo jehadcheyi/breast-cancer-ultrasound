@@ -178,15 +178,15 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
 
         with gr.Column():
             gr.Markdown("### Results")
-            with gr.Row():
-                cls_output = gr.Label(label="Diagnosis Confidence")
-                seg_output = gr.Image(label="Image with Green Lesion Overlay")
+            cls_output = gr.Label(label="Diagnosis Confidence")
+            seg_output = gr.Image(label="Image with Green Lesion Overlay")
 
     analyze_btn.click(
         fn=analyze_image,
         inputs=image_input,
         outputs=[cls_output, seg_output, gr.Image(visible=False)]
     )
+
 
 
 if __name__ == "__main__":

@@ -1,72 +1,81 @@
 import os
-import numpy as np
 import cv2
+import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.image import img_to_array
 import matplotlib.pyplot as plt
 from PIL import Image
 import gradio as gr
+from tensorflow.keras.models import load_model
 
-# Load models
-unet_path = "unet.h5"
-classifier_path = "cnn96.h5"
+# === EncoderBlock for loading UNet ===
+class EncoderBlock(tf.keras.layers.Layer):
+    def __init__(self, filters, kernel_size=3, pool=True, **kwargs):
+        super(EncoderBlock, self).__init__(**kwargs)
+        self.conv1 = tf.keras.layers.Conv2D(filters, kernel_size, padding="same", activation="relu")
+        self.bn1 = tf.keras.layers.BatchNormalization()
+        self.conv2 = tf.keras.layers.Conv2D(filters, kernel_size, padding="same", activation="relu")
+        self.bn2 = tf.keras.layers.BatchNormalization()
+        self.pool = tf.keras.layers.MaxPooling2D(pool_size=(2, 2)) if pool else None
 
-if not os.path.exists(unet_path):
-    raise FileNotFoundError(f"UNet model not found at {unet_path}")
-if not os.path.exists(classifier_path):
-    raise FileNotFoundError(f"Classifier model not found at {classifier_path}")
+    def call(self, inputs):
+        x = self.conv1(inputs)
+        x = self.bn1(x)
+        x = self.conv2(x)
+        x = self.bn2(x)
+        if self.pool:
+            return self.pool(x)
+        return x
 
+# === Load Models ===
 print("Loading models...")
-unet_model = load_model(unet_path)
-cnn_model = load_model(classifier_path)
+unet_model = load_model("unet.h5", custom_objects={"EncoderBlock": EncoderBlock})
+cnn_model = load_model("cnn96.h5")
 print("Models loaded successfully!")
 
-# Constants
-input_size = (224, 224)
-seg_size = (256, 256)
+# === Constants ===
+SEG_SIZE = (256, 256)
+CLS_SIZE = (96, 96)
+CLASSES = ["Benign", "Malignant", "Normal"]
+COLORS = {"Benign": "#4CAF50", "Malignant": "#F44336", "Normal": "#2196F3"}
 
-class_names = ['Benign', 'Malignant', 'Normal']
-class_colors = ['#4CAF50', '#F44336', '#2196F3']
-
-def preprocess_input(image):
-    image = cv2.resize(image, seg_size)
+# === Processing Functions ===
+def preprocess_image(image):
+    image = cv2.resize(image, SEG_SIZE)
     image = image.astype(np.float32) / 255.0
     return np.expand_dims(image, axis=0)
 
 def get_mask(image):
-    preprocessed = preprocess_input(image)
-    pred_mask = unet_model.predict(preprocessed, verbose=0)[0]
-    mask = (pred_mask[..., 0] > 0.5).astype(np.uint8)
-    return mask
+    preprocessed = preprocess_image(image)
+    mask = unet_model.predict(preprocessed, verbose=0)[0]
+    return (mask[..., 0] > 0.5).astype(np.uint8)
 
-def extract_region(original, mask):
-    masked = cv2.bitwise_and(original, original, mask=mask.astype(np.uint8))
-    x, y, w, h = cv2.boundingRect(mask.astype(np.uint8))
+def extract_lesion(original, mask):
+    masked = cv2.bitwise_and(original, original, mask=mask)
+    x, y, w, h = cv2.boundingRect(mask)
     cropped = masked[y:y+h, x:x+w]
     if cropped.size == 0:
-        raise ValueError("No region detected for classification.")
-    resized = cv2.resize(cropped, input_size)
+        raise ValueError("No lesion detected.")
+    resized = cv2.resize(cropped, CLS_SIZE)
     normalized = resized.astype(np.float32) / 255.0
     return np.expand_dims(normalized, axis=0), cropped
 
-def analyze_ultrasound(img):
+def analyze_image(image):
     try:
-        img = img.astype('uint8')
-        original = cv2.resize(img, seg_size)
+        image = image.astype('uint8')
+        resized = cv2.resize(image, SEG_SIZE)
 
-        mask = get_mask(original)
-        input_for_cnn, cropped = extract_region(original, mask)
+        mask = get_mask(resized)
+        input_for_cls, cropped = extract_lesion(resized, mask)
 
-        pred = cnn_model.predict(input_for_cnn, verbose=0)[0]
+        pred = cnn_model.predict(input_for_cls, verbose=0)[0]
         pred_idx = np.argmax(pred)
+        label = CLASSES[pred_idx]
         confidence = pred[pred_idx] * 100
-        label = class_names[pred_idx]
-        color = class_colors[pred_idx]
+        color = COLORS[label]
 
-        # Visualization
+        # === Visualization ===
         fig, axs = plt.subplots(1, 3, figsize=(18, 6))
-        axs[0].imshow(cv2.cvtColor(original, cv2.COLOR_BGR2RGB))
+        axs[0].imshow(cv2.cvtColor(resized, cv2.COLOR_BGR2RGB))
         axs[0].set_title("Original Ultrasound")
         axs[0].axis('off')
 
@@ -75,12 +84,11 @@ def analyze_ultrasound(img):
         axs[1].axis('off')
 
         axs[2].imshow(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
-        axs[2].set_title("Segmented Region")
+        axs[2].set_title("Segmented Lesion")
         axs[2].axis('off')
-
         plt.tight_layout()
 
-        # Diagnosis summary
+        # === Diagnosis Box ===
         html = f"""
         <div style="border: 2px solid {color}; border-radius: 10px; padding: 20px; font-family: Arial;">
             <h2 style="color: {color};">Diagnosis: {label}</h2>
@@ -93,17 +101,17 @@ def analyze_ultrasound(img):
     except Exception as e:
         return f"<div style='color:red'><b>Error:</b> {str(e)}</div>", None
 
-# Gradio UI
-with gr.Blocks(title="Breast Ultrasound Segmentation & Classification") as demo:
+# === Gradio UI ===
+with gr.Blocks(title="Breast Ultrasound Analysis") as demo:
     with gr.Row():
         with gr.Column():
             gr.Markdown("## Upload Breast Ultrasound Image")
-            image_input = gr.Image(type="numpy", label="Ultrasound Image")
-            submit_btn = gr.Button("Analyze Image", variant="primary")
+            image_input = gr.Image(type="numpy", label="Input Ultrasound")
+            analyze_btn = gr.Button("Analyze", variant="primary")
         with gr.Column():
-            diagnosis_output = gr.HTML()
-            plot_output = gr.Plot()
+            diagnosis_html = gr.HTML()
+            output_plot = gr.Plot()
 
-    submit_btn.click(fn=analyze_ultrasound, inputs=image_input, outputs=[diagnosis_output, plot_output])
+    analyze_btn.click(fn=analyze_image, inputs=image_input, outputs=[diagnosis_html, output_plot])
 
 demo.launch(share=True)

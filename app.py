@@ -33,6 +33,20 @@ except Exception as e:
 # Labels
 class_labels = ['benign', 'malignant', 'normal']
 
+# Automatically load example images from 'example' folder
+example_images = []
+example_folder = 'example'
+
+if os.path.exists(example_folder):
+    for filename in os.listdir(example_folder):
+        if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+            filepath = os.path.join(example_folder, filename)
+            # Use filename without extension as label
+            label = os.path.splitext(filename)[0].replace('_', ' ').title()
+            example_images.append([filepath, label])
+else:
+    logger.warning(f"Example folder '{example_folder}' not found. No example images will be available.")
+
 # Enhancement functions
 def fuzzy_enhancement(image):
     enhancer = ImageEnhance.Contrast(image)
@@ -174,6 +188,18 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
     with gr.Row():
         with gr.Column():
             image_input = gr.Image(label="Upload Ultrasound Image", type="pil")
+            
+            # Add example gallery if we found any images
+            if example_images:
+                gr.Examples(
+                    examples=example_images,
+                    inputs=image_input,
+                    label="Click on any example image below to analyze it",
+                    examples_per_page=3
+                )
+            else:
+                gr.Markdown("⚠️ No example images found in the 'example' folder")
+            
             analyze_btn = gr.Button("Analyze", variant="primary")
 
         with gr.Column():

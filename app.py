@@ -33,8 +33,8 @@ cnn_model = load_model("cnn96.h5")
 print("Models loaded successfully!")
 
 # === Constants ===
-SEG_SIZE = (256, 256)
-CLS_SIZE = (96, 96)
+SEG_SIZE = (224, 224)
+CLS_SIZE = (224, 224)
 CLASSES = ["Benign", "Malignant", "Normal"]
 COLORS = {"Benign": "#4CAF50", "Malignant": "#F44336", "Normal": "#2196F3"}
 

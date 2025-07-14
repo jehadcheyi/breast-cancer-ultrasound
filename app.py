@@ -12,113 +12,157 @@ from tensorflow.keras import regularizers
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load model
+# Load models with error handling
 try:
-    model_path = 'cnn96.h5'
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model file {model_path} not found")
+    # Load classification model
+    cls_model_path = 'cnn96.h5'
+    if not os.path.exists(cls_model_path):
+        raise FileNotFoundError(f"Classification model file {cls_model_path} not found")
     
-    logger.info(f"Loading model from: {model_path}")
-    model = load_model(model_path)
-    logger.info("Model loaded successfully!")
+    logger.info(f"Loading classification model from: {cls_model_path}")
+    cls_model = load_model(cls_model_path)
+    logger.info("Classification model loaded successfully!")
     
-    # Verify model architecture
-    logger.info(f"Model input shape: {model.input_shape}")
-    logger.info(f"Model output shape: {model.output_shape}")
+    # Load segmentation model
+    seg_model_path = 'unet.h5'
+    if not os.path.exists(seg_model_path):
+        raise FileNotFoundError(f"Segmentation model file {seg_model_path} not found")
+    
+    logger.info(f"Loading segmentation model from: {seg_model_path}")
+    seg_model = load_model(seg_model_path)
+    logger.info("Segmentation model loaded successfully!")
     
 except Exception as e:
-    logger.error(f"Error loading model: {str(e)}")
-    model = None
+    logger.error(f"Error loading models: {str(e)}")
+    cls_model = None
+    seg_model = None
 
-# Define class labels (must match training order)
+# Define class labels
 class_labels = ['benign', 'malignant', 'normal']
 
-def preprocess_image(image):
-    """Preprocess image to EXACTLY match training conditions"""
+def preprocess_image(image, model_type='classification'):
+    """Preprocess image for either classification or segmentation"""
     try:
         # Convert to numpy array
         image = np.array(image)
         
-        # Convert to RGB if needed (matches your training data loading)
+        # Convert to RGB if needed
         if len(image.shape) == 2:  # Grayscale
             image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
         elif image.shape[2] == 4:  # RGBA
             image = image[:, :, :3]
         
-        # Resize to model's expected input size (224x224)
-        image = Image.fromarray(image).resize((400, 400))
-        image = np.array(image)
-        
-        # Normalize pixel values EXACTLY like during training
-        image = (image.astype('float32') / 255.0) - 0.5  # Zero-centering
+        # Resize based on model type
+        if model_type == 'classification':
+            image = Image.fromarray(image).resize((224, 224))
+            image = np.array(image)
+            # Normalize for classification model
+            image = (image.astype('float32') / 255.0) - 0.5
+        else:  # segmentation
+            original_shape = image.shape[:2]
+            image = Image.fromarray(image).resize((256, 256))  # Common UNet input size
+            image = np.array(image)
+            # Normalize for segmentation model
+            image = image.astype('float32') / 255.0
         
         # Add batch dimension
         image = np.expand_dims(image, axis=0)
         
-        return image
+        return image, original_shape if model_type == 'segmentation' else image
     except Exception as e:
         logger.error(f"Error preprocessing image: {str(e)}")
         return None
 
-def predict_image(image):
-    """Make prediction on the uploaded image"""
-    if model is None:
-        return {"Error": "Model failed to load. Please check if cnn96.h5 exists."}
+def apply_segmentation(image):
+    """Apply segmentation to the image"""
+    if seg_model is None:
+        return None
     
     try:
-        # Preprocess the image
-        processed_image = preprocess_image(image)
-        if processed_image is None:
-            return {"Error": "Failed to process image"}
+        # Preprocess for segmentation
+        processed_img, original_shape = preprocess_image(image, model_type='segmentation')
         
-        # Verify input shape
-        if processed_image.shape[1:] != model.input_shape[1:]:
-            return {"Error": f"Input shape mismatch. Expected {model.input_shape[1:]}, got {processed_image.shape[1:]}"}
+        # Predict segmentation mask
+        mask = seg_model.predict(processed_img, verbose=0)[0]
+        mask = (mask > 0.5).astype('uint8') * 255  # Threshold and scale to 0-255
         
-        # Make prediction
-        predictions = model.predict(processed_image, verbose=0)[0]
-        logger.info(f"Raw predictions: {predictions}")
+        # Resize mask to original image size
+        mask = cv2.resize(mask, (original_shape[1], original_shape[0]))
         
-        # Create dictionary of class probabilities
+        # Convert single channel to RGB for visualization
+        mask_rgb = cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB)
+        
+        # Create overlay (50% opacity)
+        overlay = cv2.addWeighted(np.array(image), 0.7, mask_rgb, 0.3, 0)
+        
+        return overlay, mask
+    except Exception as e:
+        logger.error(f"Segmentation error: {str(e)}")
+        return None
+
+def predict_image(image):
+    """Make prediction and segmentation on the uploaded image"""
+    if cls_model is None or seg_model is None:
+        return {"Error": "Models failed to load. Please check model files."}, None
+    
+    try:
+        # Classification
+        processed_img = preprocess_image(image, model_type='classification')
+        predictions = cls_model.predict(processed_img, verbose=0)[0]
         confidences = {
             'benign': float(predictions[0]),
             'malignant': float(predictions[1]),
             'normal': float(predictions[2])
         }
         
-        return confidences
+        # Segmentation
+        seg_result = apply_segmentation(image)
+        
+        return confidences, seg_result[0] if seg_result else None
     except Exception as e:
         logger.error(f"Prediction error: {str(e)}")
-        return {"Error": f"Prediction error: {str(e)}"}
+        return {"Error": f"Prediction error: {str(e)}"}, None
 
 # Gradio interface
-title = "Breast Cancer Ultrasound Classification"
+title = "Breast Cancer Ultrasound Analysis"
 description = """
-Upload an ultrasound image (224x224) to classify as:
-- Benign (0)
-- Malignant (1) 
-- Normal (2)
+Upload an ultrasound image for:
+1. Classification (benign/malignant/normal)
+2. Lesion segmentation
 
-Model architecture:
-- 7 Conv layers with MaxPooling
-- 1024-unit Dense layer with L2 regularization
-- 50% Dropout
-- Trained with Adam (lr=0.0001)
+Models used:
+- CNN96: Classification model (224x224 input)
+- UNet: Segmentation model (256x256 input)
 """
 
-demo = gr.Interface(
-    fn=predict_image,
-    inputs=gr.Image(label="Upload Ultrasound Image", type="pil"),
-    outputs=gr.Label(num_top_classes=3, label="Prediction Results"),
-    title=title,
-    description=description,
-    examples=[
-        ["example_benign.png"],
-        ["example_malignant.png"],
-        ["example_normal.png"]
-    ] if all(os.path.exists(f"example_{cls}.png") for cls in ['benign', 'malignant', 'normal']) else None,
-    allow_flagging="never"
-)
+with gr.Blocks() as demo:
+    gr.Markdown(f"## {title}")
+    gr.Markdown(description)
+    
+    with gr.Row():
+        with gr.Column():
+            image_input = gr.Image(label="Upload Ultrasound Image", type="pil")
+            submit_btn = gr.Button("Analyze")
+        
+        with gr.Column():
+            label_output = gr.Label(label="Classification Results")
+            segmentation_output = gr.Image(label="Segmentation Result")
+    
+    # Example images
+    gr.Examples(
+        examples=[
+            ["example_benign.png"],
+            ["example_malignant.png"],
+            ["example_normal.png"]
+        ] if all(os.path.exists(f"example_{cls}.png") for cls in ['benign', 'malignant', 'normal']) else None,
+        inputs=image_input
+    )
+    
+    submit_btn.click(
+        fn=predict_image,
+        inputs=image_input,
+        outputs=[label_output, segmentation_output]
+    )
 
 if __name__ == "__main__":
     demo.launch()

@@ -7,7 +7,7 @@ import cv2
 import os
 
 # Load your pre-trained model
-model = load_model('CNN96.h5')
+model = load_model('cnn96.h5')
 
 # Define class labels
 class_labels = ['benign', 'malignant', 'normal']

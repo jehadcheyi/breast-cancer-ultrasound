@@ -189,21 +189,23 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
 
     with gr.Row():
         with gr.Column():
-            image_input = gr.Image(label="Upload Ultrasound Image", type="pil")
-            analyze_btn = gr.Button("Analyze", variant="primary")
+            # Upload section
+            with gr.Group():
+                image_input = gr.Image(label="Upload Ultrasound Image", type="pil", height=300)
+                analyze_btn = gr.Button("Analyze", variant="primary")
             
             # Example Gallery
             if example_images:
-                gr.Markdown("### Example Images (Click to load)")
-                with gr.Row():
+                with gr.Group():
+                    gr.Markdown("### Example Images (Click to load)")
                     example_gallery = gr.Gallery(
                         value=example_images,
-                        label="Click on an example image to load it",
+                        label=None,
                         columns=3,
                         rows=2,
                         height="auto",
                         object_fit="contain"
-                    )
+                    ).style(grid=3, height="auto")
             
             # Function to handle gallery selection
             def select_example(evt: gr.SelectData):
@@ -213,10 +215,10 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
                 example_gallery.select(select_example, outputs=image_input)
 
         with gr.Column():
-            with gr.Tab("Classification Results"):
-                cls_output = gr.Label(label="Diagnosis Confidence")
-            with gr.Tab("Segmentation"):
-                seg_output = gr.Image(label="Result Display")
+            # Results section
+            with gr.Group():
+                cls_output = gr.Label(label="Classification Results")
+                seg_output = gr.Image(label="Segmentation Result", height=300)
 
     analyze_btn.click(
         fn=analyze_image,

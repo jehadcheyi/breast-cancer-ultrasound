@@ -172,53 +172,88 @@ def analyze_image(image):
         logger.error(f"Analysis error: {str(e)}")
         return {"Error": f"Analysis failed: {str(e)}"}, None, None
 
+# ... [keep all your existing imports and model loading code] ...
+
 # Gradio interface
-title = "Breast Cancer Ultrasound Analysis"
+title = "Breast Ultrasound Diagnostic Assistant"
 description = """
-1. Segments the ultrasound image (green highlights lesion)
-2. Classifies the segmented image (as per model training)
-3. Shows original image if classified as normal
-Models:
-- U-Net: 224x224 grayscale input
-- CNN96: 400x400 RGB with overlay (trained on segmented images)
+**AI-powered analysis of breast ultrasound images**  
+This tool helps medical professionals by:
+1. **Segmenting** potential lesions (highlighted in green)
+2. **Classifying** findings as benign, malignant, or normal  
+3. **Displaying** original images when no abnormalities are detected
+
+*Model Specifications*:  
+- Segmentation: U-Net (224×224 grayscale)  
+- Classification: Custom CNN (400×400 RGB with segmentation overlay)
 """
 
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
-    gr.Markdown(f"# {title}")
+    gr.Markdown(f"## {title}")
     gr.Markdown(description)
-
+    
     with gr.Row():
+        # Input Column
         with gr.Column():
-            # Upload section
             with gr.Group():
-                image_input = gr.Image(label="Upload Ultrasound Image", type="pil", height=300)
-                analyze_btn = gr.Button("Analyze", variant="primary")
+                gr.Markdown("### Patient Image Input")
+                image_input = gr.Image(
+                    label="Upload ultrasound scan",
+                    type="pil",
+                    height=300,
+                    info="Supported formats: PNG, JPG, JPEG, BMP"
+                )
+                analyze_btn = gr.Button(
+                    "Analyze Image",
+                    variant="primary",
+                    size="lg"
+                )
             
-            # Example Gallery
             if example_images:
                 with gr.Group():
-                    gr.Markdown("### Example Images (Click to load)")
+                    gr.Markdown("### Sample Cases")
+                    gr.Markdown("Click any example below to load it:")
                     example_gallery = gr.Gallery(
                         value=example_images,
                         label=None,
                         columns=3,
-                        rows=2,
                         height="auto",
                         object_fit="contain"
-                    ).style(grid=3, height="auto")
-            
-            # Function to handle gallery selection
-            def select_example(evt: gr.SelectData):
-                return example_images[evt.index]
-            
-            if example_images:
-                example_gallery.select(select_example, outputs=image_input)
+                    )
 
+        # Results Column
         with gr.Column():
-            # Results section
             with gr.Group():
-                cls_output = gr.Label(label="Classification Results")
-                seg_output = gr.Image(label="Segmentation Result", height=300)
+                gr.Markdown("### Analysis Results")
+                
+                with gr.Accordion("Classification Report", open=True):
+                    cls_output = gr.Label(
+                        label="Diagnostic Confidence",
+                        num_top_classes=3,
+                        show_label=False
+                    )
+                
+                with gr.Accordion("Segmentation Visualization", open=True):
+                    seg_output = gr.Image(
+                        label="Lesion Segmentation",
+                        height=300,
+                        interactive=False,
+                        show_download_button=True
+                    )
+                
+                gr.Markdown("""
+                **Interpretation Guide**:  
+                - Green areas indicate detected lesions  
+                - Normal cases show the original image  
+                - Confidence scores range from 0 (low) to 1 (high)
+                """)
+
+    # Example selection handler
+    if example_images:
+        example_gallery.select(
+            fn=lambda evt: example_images[evt.index],
+            outputs=image_input
+        )
 
     analyze_btn.click(
         fn=analyze_image,

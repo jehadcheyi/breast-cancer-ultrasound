@@ -124,49 +124,21 @@ def create_segmentation_overlay(original_image, mask):
         logger.error(f"Overlay creation error: {str(e)}")
         return None
 
+import gradio as gr
+import numpy as np
+import json  # Add this import
+
+
 def analyze_image(image):
     if seg_model is None or cls_model is None:
-        return {"Error": "Models failed to load"}, None
+        return {"error": "Models failed to load"}, None
 
     try:
         original_image = np.array(image)
 
-        # Perform segmentation first (as per training workflow)
-        seg_input, original_shape = preprocess_for_segmentation(original_image)
-        if seg_input is None:
-            return {"Error": "Segmentation preprocessing failed"}, None
+        # ... [keep all your existing analysis code] ...
 
-        mask = seg_model.predict(seg_input, verbose=0)[0]
-        mask = cv2.resize(mask.squeeze(), (original_shape[1], original_shape[0]))
-
-        # Threshold + morphological refinement
-        _, binary_mask = cv2.threshold(mask, 0.5, 1, cv2.THRESH_BINARY)
-        kernel = np.ones((5, 5), np.uint8)
-        binary_mask = cv2.morphologyEx(binary_mask.astype('uint8'), cv2.MORPH_CLOSE, kernel)
-        binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
-        mask = binary_mask
-
-        # Create green overlay (always create it for classification)
-        overlay = create_segmentation_overlay(original_image, mask)
-        if overlay is None:
-            return {"Error": "Overlay creation failed"}, None
-
-        # Classification with overlay (as trained)
-        cls_input = preprocess_for_classification(overlay)
-        if cls_input is None:
-            return {"Error": "Classification preprocessing failed"}, None
-
-        predictions = cls_model.predict(cls_input, verbose=0)[0]
-        cls_result = {
-            'benign': float(predictions[0]),
-            'malignant': float(predictions[1]),
-            'normal': float(predictions[2])
-        }
-
-        # Only show overlay if not normal
-        final_display = overlay if np.argmax(predictions) != 2 else original_image
-
-        # Combine results into a single output
+        # Combine results into a properly formatted dictionary
         combined_output = {
             "classification": cls_result,
             "image": final_display
@@ -176,50 +148,66 @@ def analyze_image(image):
 
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}")
-        return {"Error": f"Analysis failed: {str(e)}"}, None
+        return {"error": f"Analysis failed: {str(e)}"}, None
 
-# Custom CSS for better layout
-custom_css = """
-.analysis-results {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-.result-image {
-    max-width: 100%;
-    border: 1px solid #e2e2e2;
-    border-radius: 4px;
-}
-.result-label {
-    font-size: 1.2em;
-    padding: 10px;
-    background: #f5f5f5;
-    border-radius: 4px;
-}
-"""
-
-# Function to render combined results
 def render_results(result):
-    if "Error" in result:
-        return result["Error"]
+    if isinstance(result, str):
+        try:
+            result = json.loads(result)
+        except:
+            return result
+            
+    if "error" in result:
+        return f"Error: {result['error']}"
     
-    # Create a column layout with classification results and image
-    with gr.Column(elem_classes="analysis-results"):
-        gr.Markdown("### Classification Results", elem_classes="result-label")
-        gr.Label(value=result["classification"], label="Diagnosis Confidence")
-        
-        gr.Markdown("### Processed Image", elem_classes="result-label")
-        gr.Image(value=result["image"], elem_classes="result-image")
+    # Format classification results as HTML
+    classification_html = """
+    <div style="
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    ">
+        <h3 style="margin-top: 0;">Classification Results</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background: #e9ecef;">
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Class</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Confidence</th>
+            </tr>
+    """
+    
+    for class_name, confidence in result["classification"].items():
+        percentage = f"{confidence*100:.2f}%"
+        classification_html += f"""
+            <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{class_name.capitalize()}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{percentage}</td>
+            </tr>
+        """
+    
+    classification_html += """
+        </table>
+    </div>
+    """
+    
+    # Return both the classification and image
+    return f"""
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+        {classification_html}
+        <div style="
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        ">
+            <h3 style="margin-top: 0;">Processed Image</h3>
+            <img src="data:image/png;base64,{gr.processing_utils.encode_array_to_base64(result['image'])}" 
+                 style="max-width: 100%; border-radius: 4px;"/>
+        </div>
+    </div>
+    """
 
 # Gradio interface
-title = "Breast Cancer Ultrasound Analysis"
-description = """
-1. Upload an ultrasound image or select from examples
-2. Click Analyze to see results
-3. Results show classification confidence and processed image
-"""
-
-with gr.Blocks(theme=gr.themes.Soft(), css=custom_css) as demo:
+with gr.Blocks(theme=gr.themes.Soft()) as demo:
     gr.Markdown(f"# {title}")
     gr.Markdown(description)
 
@@ -228,44 +216,31 @@ with gr.Blocks(theme=gr.themes.Soft(), css=custom_css) as demo:
             image_input = gr.Image(label="Upload Ultrasound Image", type="pil")
             analyze_btn = gr.Button("Analyze", variant="primary")
             
-            # Example Gallery
             if example_images:
                 gr.Markdown("### Example Images (Click to load)")
-                with gr.Row():
-                    example_gallery = gr.Gallery(
-                        value=example_images,
-                        label="Click on an example image to load it",
-                        columns=3,
-                        rows=2,
-                        height="auto",
-                        object_fit="contain"
-                    )
-            
-            # Function to handle gallery selection
-            def select_example(evt: gr.SelectData):
-                return example_images[evt.index]
-            
-            if example_images:
+                example_gallery = gr.Gallery(
+                    value=example_images,
+                    label="Click on an example image to load it",
+                    columns=3,
+                    rows=2,
+                    height="auto"
+                )
+                
+                def select_example(evt: gr.SelectData):
+                    return example_images[evt.index]
+                
                 example_gallery.select(select_example, outputs=image_input)
 
         with gr.Column():
-            # Single results tab with combined output
             with gr.Tab("Analysis Results"):
-                results_output = gr.HTML()  # Using HTML for more flexible rendering
+                results_output = gr.HTML(label="Results")
 
     analyze_btn.click(
         fn=analyze_image,
         inputs=image_input,
         outputs=results_output
-    )
-
-    # Render the results when analysis completes
-    demo.load(
-        fn=lambda: "Upload an image and click Analyze to see results",
-        outputs=results_output
-    )
-    analyze_btn.click(
-        fn=lambda x: render_results(x),
+    ).then(
+        fn=render_results,
         inputs=results_output,
         outputs=results_output
     )

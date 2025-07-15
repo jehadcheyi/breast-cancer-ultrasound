@@ -166,180 +166,44 @@ def analyze_image(image):
         # Only show overlay if not normal
         final_display = overlay if np.argmax(predictions) != 2 else original_image
 
-        return cls_result, final_display, mask
+        return cls_result, final_display, None
 
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}")
         return {"Error": f"Analysis failed: {str(e)}"}, None, None
 
-# ... (keep all the previous imports and model loading code unchanged until the CSS section)
-
-# Custom CSS for dark theme with black background
-custom_css = """
-:root {
-    --primary: #6c63ff;
-    --primary-dark: #5a52e0;
-    --text: #e5e7eb;
-    --text-light: #f3f4f6;
-    --background: #000000;
-    --card-bg: #1a1a1a;
-    --card-border: #2d2d2d;
-    --border: #333333;
-}
-
-body {
-    font-family: 'Inter', sans-serif;
-    color: var(--text);
-    background-color: var(--background) !important;
-}
-
-.gradio-container {
-    max-width: 1200px !important;
-    margin: 0 auto;
-    padding: 20px;
-    background: var(--background) !important;
-}
-
-h1, h2, h3, h4 {
-    color: var(--text-light);
-}
-
-.description {
-    color: var(--text);
-    margin-bottom: 24px;
-    line-height: 1.6;
-}
-
-.card {
-    background: var(--card-bg) !important;
-    border-radius: 12px !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-    padding: 24px;
-    margin-bottom: 24px;
-    border: 1px solid var(--card-border) !important;
-}
-
-.tab-button {
-    font-weight: 500 !important;
-    background: var(--card-bg) !important;
-}
-
-.primary-button {
-    background: var(--primary) !important;
-    color: white !important;
-    border: none !important;
-    padding: 10px 24px !important;
-    border-radius: 8px !important;
-    font-weight: 500 !important;
-    transition: all 0.2s ease;
-}
-
-.primary-button:hover {
-    background: var(--primary-dark) !important;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.gallery {
-    border-radius: 12px !important;
-    overflow: hidden;
-    background: var(--card-bg) !important;
-    border: 1px solid var(--border) !important;
-}
-
-.gallery-item {
-    border-radius: 8px !important;
-    transition: transform 0.2s;
-    border: 1px solid var(--border) !important;
-}
-
-.gallery-item:hover {
-    transform: scale(1.02);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.label-container {
-    background: var(--card-bg);
-    border-radius: 8px;
-    padding: 16px;
-    margin-top: 16px;
-    border: 1px solid var(--border);
-}
-
-.progress-bar {
-    height: 8px !important;
-    border-radius: 4px !important;
-}
-
-.image-preview {
-    border-radius: 12px !important;
-    overflow: hidden;
-    border: 1px solid var(--border) !important;
-}
-
-.segmentation-mask {
-    background: #000;
-    border-radius: 12px !important;
-    overflow: hidden;
-    border: 1px solid var(--border) !important;
-}
-
-/* Style the label component for dark theme */
-.gr-label {
-    color: var(--text) !important;
-}
-
-/* Style the confidence bars */
-.gr-label .confidence-bar {
-    background: var(--primary) !important;
-}
-
-.gr-label .confidence-label {
-    color: var(--text-light) !important;
-}
-
-/* Input styling */
-.gr-image-upload {
-    background: var(--card-bg) !important;
-    border: 1px dashed var(--border) !important;
-    border-radius: 12px !important;
-}
-
-.gr-image-upload:hover {
-    border-color: var(--primary) !important;
-}
+# Gradio interface
+title = "Breast Cancer Ultrasound Analysis"
+description = """
+1. Segments the ultrasound image (green highlights lesion)
+2. Classifies the segmented image (as per model training)
+3. Shows original image if classified as normal
+Models:
+- U-Net: 224x224 grayscale input
+- CNN96: 400x400 RGB with overlay (trained on segmented images)
 """
 
-# Gradio interface (keep the rest of the code the same as before)
-with gr.Blocks(theme=gr.themes.Soft(), css=custom_css) as demo:
-    # Header Section with dark theme adjustments
-    with gr.Column(elem_classes=["card"]):
-        gr.Markdown(f"## {title}", elem_classes=["header"])
-        gr.Markdown(description, elem_classes=["description"])
-    
-    # Main Content
+with gr.Blocks(theme=gr.themes.Soft()) as demo:
+    gr.Markdown(f"# {title}")
+    gr.Markdown(description)
+
     with gr.Row():
-        # Input Column
-        with gr.Column(scale=1, min_width=400):
-            with gr.Column(elem_classes=["card"]):
-                gr.Markdown("### Upload Image", elem_classes=["header"])
-                image_input = gr.Image(label="", type="pil", elem_classes=["image-preview"])
-                analyze_btn = gr.Button("Analyze", variant="primary", elem_classes=["primary-button"])
-                
-                # Example Gallery
-                if example_images:
-                    with gr.Column():
-                        gr.Markdown("### Example Images", elem_classes=["header"])
-                        gr.Markdown("Click on an example below to load it:", elem_classes=["description"])
-                        example_gallery = gr.Gallery(
-                            value=example_images,
-                            label=None,
-                            columns=3,
-                            rows=2,
-                            height="auto",
-                            object_fit="contain",
-                            elem_classes=["gallery"]
-                        )
+        with gr.Column():
+            image_input = gr.Image(label="Upload Ultrasound Image", type="pil")
+            analyze_btn = gr.Button("Analyze", variant="primary")
+            
+            # Example Gallery
+            if example_images:
+                gr.Markdown("### Example Images (Click to load)")
+                with gr.Row():
+                    example_gallery = gr.Gallery(
+                        value=example_images,
+                        label="Click on an example image to load it",
+                        columns=3,
+                        rows=2,
+                        height="auto",
+                        object_fit="contain"
+                    )
             
             # Function to handle gallery selection
             def select_example(evt: gr.SelectData):
@@ -348,29 +212,16 @@ with gr.Blocks(theme=gr.themes.Soft(), css=custom_css) as demo:
             if example_images:
                 example_gallery.select(select_example, outputs=image_input)
 
-        # Output Column
-        with gr.Column(scale=1, min_width=500):
-            with gr.Column(elem_classes=["card"]):
-                gr.Markdown("### Analysis Results", elem_classes=["header"])
-                
-                # Classification Results
-                with gr.Column(elem_classes=["label-container"]):
-                    gr.Markdown("**Diagnosis Confidence**", elem_classes=["header"])
-                    cls_output = gr.Label(label="", show_label=False)
-                
-                # Segmentation Results
-                gr.Markdown("**Segmentation Visualization**", elem_classes=["header"])
-                seg_output = gr.Image(label="Lesion highlighted in green", elem_classes=["image-preview"])
-                
-                # Raw Mask (hidden by default)
-                gr.Markdown("**Segmentation Mask**", visible=False)
-                mask_output = gr.Image(label="Segmentation Mask", visible=False, elem_classes=["segmentation-mask"])
+        with gr.Column():
+            with gr.Tab("Classification Results"):
+                cls_output = gr.Label(label="Diagnosis Confidence")
+            with gr.Tab("Segmentation"):
+                seg_output = gr.Image(label="Result Display")
 
-    # Analysis function
     analyze_btn.click(
         fn=analyze_image,
         inputs=image_input,
-        outputs=[cls_output, seg_output, mask_output]
+        outputs=[cls_output, seg_output, gr.Image(visible=False)]
     )
 
 if __name__ == "__main__":

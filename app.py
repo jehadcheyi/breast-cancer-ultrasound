@@ -120,6 +120,23 @@ def analyze_image(image):
     try:
         original_image = np.array(image)
 
+        # First check if the image is normal before segmentation
+        cls_input = preprocess_for_classification(original_image)
+        if cls_input is None:
+            return {"Error": "Initial classification preprocessing failed"}, None, None
+            
+        initial_prediction = cls_model.predict(cls_input, verbose=0)[0]
+        initial_result = {
+            'benign': float(initial_prediction[0]),
+            'malignant': float(initial_prediction[1]),
+            'normal': float(initial_prediction[2])
+        }
+        
+        # If normal probability is highest, skip segmentation
+        if np.argmax(initial_prediction) == 2:  # normal is index 2
+            return initial_result, original_image, None
+
+        # Otherwise proceed with segmentation
         seg_input, original_shape = preprocess_for_segmentation(original_image)
         if seg_input is None:
             return {"Error": "Segmentation preprocessing failed"}, None, None
@@ -139,7 +156,7 @@ def analyze_image(image):
         if overlay is None:
             return {"Error": "Overlay creation failed"}, None, None
 
-        # Classification
+        # Final classification with overlay
         cls_input = preprocess_for_classification(overlay)
         if cls_input is None:
             return {"Error": "Classification preprocessing failed"}, overlay, None
@@ -160,8 +177,9 @@ def analyze_image(image):
 # Gradio interface
 title = "Breast Cancer Ultrasound Analysis"
 description = """
-1. Segments the ultrasound image (green highlights lesion)
-2. Classifies the image with green overlay
+1. First checks if image is normal (no segmentation needed)
+2. For non-normal images: segments the ultrasound image (green highlights lesion)
+3. Classifies the image with green overlay (for non-normal cases)
 Models:
 - U-Net: 224x224 grayscale input
 - CNN96: 400x400 RGB with overlay
@@ -180,7 +198,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             with gr.Tab("Classification Results"):
                 cls_output = gr.Label(label="Diagnosis Confidence")
             with gr.Tab("Segmentation"):
-                seg_output = gr.Image(label="Image with Green Lesion Overlay")
+                seg_output = gr.Image(label="Segmentation Result")
 
     analyze_btn.click(
         fn=analyze_image,

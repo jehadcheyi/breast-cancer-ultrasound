@@ -172,8 +172,6 @@ def analyze_image(image):
         logger.error(f"Analysis error: {str(e)}")
         return {"Error": f"Analysis failed: {str(e)}"}, None, None
 
-# ... [keep all your existing imports and model loading code] ...
-
 # Gradio interface
 title = "Breast Ultrasound Diagnostic Assistant"
 description = """
@@ -197,17 +195,18 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         with gr.Column():
             with gr.Group():
                 gr.Markdown("### Patient Image Input")
-                image_input = gr.Image(
-                    label="Upload ultrasound scan",
-                    type="pil",
-                    height=300,
-                    info="Supported formats: PNG, JPG, JPEG, BMP"
-                )
-                analyze_btn = gr.Button(
-                    "Analyze Image",
-                    variant="primary",
-                    size="lg"
-                )
+                with gr.Row():
+                    image_input = gr.Image(
+                        label="Upload ultrasound scan (PNG, JPG, JPEG, BMP)",
+                        type="pil",
+                        height=300
+                    )
+                with gr.Row():
+                    analyze_btn = gr.Button(
+                        "Analyze Image",
+                        variant="primary",
+                        size="lg"
+                    )
             
             if example_images:
                 with gr.Group():
@@ -237,8 +236,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
                     seg_output = gr.Image(
                         label="Lesion Segmentation",
                         height=300,
-                        interactive=False,
-                        show_download_button=True
+                        interactive=False
                     )
                 
                 gr.Markdown("""

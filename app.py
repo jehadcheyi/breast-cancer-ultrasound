@@ -33,7 +33,7 @@ except Exception as e:
 # Labels
 class_labels = ['benign', 'malignant', 'normal']
 
-# Enhancement functions
+# Enhancement functions (matching your segmentation script)
 def fuzzy_enhancement(image):
     enhancer = ImageEnhance.Contrast(image)
     return enhancer.enhance(2.0)
@@ -88,27 +88,46 @@ def preprocess_for_classification(image):
 
 def create_segmentation_overlay(original_image, mask):
     try:
-        original_pil = Image.fromarray(original_image)
-        mask_pil = Image.fromarray((mask * 255).astype('uint8'))
-
-        # Refine mask using contours
-        mask_cv = np.array(mask_pil)
-        contours, _ = cv2.findContours(mask_cv, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        overlay_mask = np.zeros_like(mask_cv)
-        cv2.drawContours(overlay_mask, contours, -1, color=255, thickness=-1)  # fill
-        mask_pil = Image.fromarray(overlay_mask)
-
-        # Green overlay
-        green_mask = Image.new("RGB", original_pil.size, (0, 255, 0))
-        green_mask.putalpha(mask_pil.convert("L"))
-
-        overlayed = Image.alpha_composite(original_pil.convert("RGBA"), green_mask)
-
-        overlayed = fuzzy_enhancement(overlayed)
-        overlayed = sharpness_enhancement(overlayed)
-        overlayed = brightness_enhancement(overlayed)
-
-        return np.array(overlayed)
+        # Convert to numpy array if not already
+        if isinstance(original_image, Image.Image):
+            original_image = np.array(original_image)
+        
+        # Convert to grayscale if needed
+        if len(original_image.shape) == 3:
+            original_image = cv2.cvtColor(original_image, cv2.COLOR_RGB2GRAY)
+        
+        # Resize mask to match original image
+        mask = cv2.resize(mask, (original_image.shape[1], original_image.shape[0]))
+        
+        # Threshold and apply morphological operations (matching your segmentation script)
+        _, binary_mask = cv2.threshold(mask, 0.5, 1, cv2.THRESH_BINARY)
+        kernel = np.ones((5, 5), np.uint8)
+        binary_mask = cv2.morphologyEx(binary_mask.astype('uint8'), cv2.MORPH_CLOSE, kernel)
+        binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
+        mask = binary_mask
+        
+        # Convert grayscale to RGB for overlay
+        overlayed_image = cv2.cvtColor(original_image, cv2.COLOR_GRAY2RGB)
+        
+        # Apply jet colormap to mask (matching your segmentation script)
+        overlayed_mask = (mask * 255).astype(np.uint8)
+        overlayed_mask_colormap = cv2.applyColorMap(overlayed_mask, cv2.COLORMAP_JET)
+        
+        # Blend the images (70% original, 30% mask)
+        overlayed_image = cv2.addWeighted(overlayed_image, 0.7, overlayed_mask_colormap, 0.3, 0)
+        
+        # Convert to PIL Image for enhancement
+        overlayed_image = Image.fromarray(overlayed_image)
+        
+        # Apply enhancements (matching your segmentation script)
+        overlayed_image = fuzzy_enhancement(overlayed_image)
+        overlayed_image = sharpness_enhancement(overlayed_image)
+        overlayed_image = brightness_enhancement(overlayed_image)
+        
+        # Rescale to 500x500 (matching your segmentation script)
+        overlayed_image = rescale_image(overlayed_image, (500, 500))
+        
+        return np.array(overlayed_image)
     except Exception as e:
         logger.error(f"Overlay creation error: {str(e)}")
         return None
@@ -125,16 +144,9 @@ def analyze_image(image):
             return {"Error": "Segmentation preprocessing failed"}, None, None
 
         mask = seg_model.predict(seg_input, verbose=0)[0]
-        mask = cv2.resize(mask.squeeze(), (original_shape[1], original_shape[0]))
+        mask = mask.squeeze()  # Remove single-dimensional entries
 
-        # Threshold + morphological refinement
-        _, binary_mask = cv2.threshold(mask, 0.5, 1, cv2.THRESH_BINARY)
-        kernel = np.ones((5, 5), np.uint8)
-        binary_mask = cv2.morphologyEx(binary_mask.astype('uint8'), cv2.MORPH_CLOSE, kernel)
-        binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
-        mask = binary_mask
-
-        # Create green overlay
+        # Create overlay using the matching segmentation approach
         overlay = create_segmentation_overlay(original_image, mask)
         if overlay is None:
             return {"Error": "Overlay creation failed"}, None, None
@@ -160,8 +172,8 @@ def analyze_image(image):
 # Gradio interface
 title = "Breast Cancer Ultrasound Analysis"
 description = """
-1. Segments the ultrasound image (green highlights lesion)
-2. Classifies the image with green overlay
+1. Segments the ultrasound image (color overlay shows lesion)
+2. Classifies the image with overlay
 Models:
 - U-Net: 224x224 grayscale input
 - CNN96: 400x400 RGB with overlay
@@ -180,7 +192,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             with gr.Tab("Classification Results"):
                 cls_output = gr.Label(label="Diagnosis Confidence")
             with gr.Tab("Segmentation"):
-                seg_output = gr.Image(label="Image with Green Lesion Overlay")
+                seg_output = gr.Image(label="Image with Lesion Overlay")
 
     analyze_btn.click(
         fn=analyze_image,

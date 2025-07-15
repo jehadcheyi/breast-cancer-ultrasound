@@ -30,6 +30,20 @@ except Exception as e:
     seg_model = None
     cls_model = None
 
+# Path to example images folder
+EXAMPLE_FOLDER = "example"
+if not os.path.exists(EXAMPLE_FOLDER):
+    os.makedirs(EXAMPLE_FOLDER)
+    logger.warning(f"Created empty examples folder at {EXAMPLE_FOLDER}")
+
+# Get example images
+example_images = []
+if os.path.exists(EXAMPLE_FOLDER):
+    for file in os.listdir(EXAMPLE_FOLDER):
+        if file.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
+            example_images.append(os.path.join(EXAMPLE_FOLDER, file))
+    logger.info(f"Found {len(example_images)} example images")
+
 # Labels
 class_labels = ['benign', 'malignant', 'normal']
 
@@ -45,9 +59,6 @@ def sharpness_enhancement(image):
 def brightness_enhancement(image):
     enhancer = ImageEnhance.Brightness(image)
     return enhancer.enhance(0.5)
-
-def rescale_image(image, target_size=(500, 500)):
-    return image.resize(target_size)
 
 def preprocess_for_segmentation(image):
     try:
@@ -180,6 +191,26 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         with gr.Column():
             image_input = gr.Image(label="Upload Ultrasound Image", type="pil")
             analyze_btn = gr.Button("Analyze", variant="primary")
+            
+            # Example Gallery
+            if example_images:
+                gr.Markdown("### Example Images (Click to load)")
+                with gr.Row():
+                    example_gallery = gr.Gallery(
+                        value=example_images,
+                        label="Click on an example image to load it",
+                        columns=3,
+                        rows=2,
+                        height="auto",
+                        object_fit="contain"
+                    )
+            
+            # Function to handle gallery selection
+            def select_example(evt: gr.SelectData):
+                return example_images[evt.index]
+            
+            if example_images:
+                example_gallery.select(select_example, outputs=image_input)
 
         with gr.Column():
             with gr.Tab("Classification Results"):

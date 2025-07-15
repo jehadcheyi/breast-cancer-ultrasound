@@ -172,33 +172,36 @@ def analyze_image(image):
         logger.error(f"Analysis error: {str(e)}")
         return {"Error": f"Analysis failed: {str(e)}"}, None, None
 
-# Custom CSS for modern styling
+# ... (keep all the previous imports and model loading code unchanged until the CSS section)
+
+# Custom CSS for dark theme with black background
 custom_css = """
 :root {
-    --primary: #4f46e5;
-    --primary-dark: #4338ca;
-    --text: #1f2937;
-    --background: #f9fafb;
-    --card-bg: #ffffff;
-    --border: #e5e7eb;
+    --primary: #6c63ff;
+    --primary-dark: #5a52e0;
+    --text: #e5e7eb;
+    --text-light: #f3f4f6;
+    --background: #000000;
+    --card-bg: #1a1a1a;
+    --card-border: #2d2d2d;
+    --border: #333333;
 }
 
 body {
     font-family: 'Inter', sans-serif;
     color: var(--text);
-    background-color: var(--background);
+    background-color: var(--background) !important;
 }
 
 .gradio-container {
     max-width: 1200px !important;
     margin: 0 auto;
     padding: 20px;
+    background: var(--background) !important;
 }
 
-h1 {
-    color: var(--primary);
-    font-weight: 700;
-    margin-bottom: 16px;
+h1, h2, h3, h4 {
+    color: var(--text-light);
 }
 
 .description {
@@ -208,16 +211,17 @@ h1 {
 }
 
 .card {
-    background: var(--card-bg);
-    border-radius: 12px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    background: var(--card-bg) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
     padding: 24px;
     margin-bottom: 24px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-border) !important;
 }
 
 .tab-button {
     font-weight: 500 !important;
+    background: var(--card-bg) !important;
 }
 
 .primary-button {
@@ -227,24 +231,31 @@ h1 {
     padding: 10px 24px !important;
     border-radius: 8px !important;
     font-weight: 500 !important;
+    transition: all 0.2s ease;
 }
 
 .primary-button:hover {
     background: var(--primary-dark) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .gallery {
     border-radius: 12px !important;
     overflow: hidden;
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border) !important;
 }
 
 .gallery-item {
     border-radius: 8px !important;
     transition: transform 0.2s;
+    border: 1px solid var(--border) !important;
 }
 
 .gallery-item:hover {
     transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .label-container {
@@ -252,6 +263,7 @@ h1 {
     border-radius: 8px;
     padding: 16px;
     margin-top: 16px;
+    border: 1px solid var(--border);
 }
 
 .progress-bar {
@@ -262,25 +274,45 @@ h1 {
 .image-preview {
     border-radius: 12px !important;
     overflow: hidden;
+    border: 1px solid var(--border) !important;
 }
 
 .segmentation-mask {
     background: #000;
     border-radius: 12px !important;
     overflow: hidden;
+    border: 1px solid var(--border) !important;
+}
+
+/* Style the label component for dark theme */
+.gr-label {
+    color: var(--text) !important;
+}
+
+/* Style the confidence bars */
+.gr-label .confidence-bar {
+    background: var(--primary) !important;
+}
+
+.gr-label .confidence-label {
+    color: var(--text-light) !important;
+}
+
+/* Input styling */
+.gr-image-upload {
+    background: var(--card-bg) !important;
+    border: 1px dashed var(--border) !important;
+    border-radius: 12px !important;
+}
+
+.gr-image-upload:hover {
+    border-color: var(--primary) !important;
 }
 """
 
-# Gradio interface
-title = "Breast Cancer Ultrasound Analysis"
-description = """
-Upload an ultrasound image to analyze it for potential breast cancer lesions. 
-The system will first segment any potential lesions (highlighted in green) 
-and then classify them as benign, malignant, or normal.
-"""
-
+# Gradio interface (keep the rest of the code the same as before)
 with gr.Blocks(theme=gr.themes.Soft(), css=custom_css) as demo:
-    # Header Section
+    # Header Section with dark theme adjustments
     with gr.Column(elem_classes=["card"]):
         gr.Markdown(f"## {title}", elem_classes=["header"])
         gr.Markdown(description, elem_classes=["description"])
@@ -290,15 +322,15 @@ with gr.Blocks(theme=gr.themes.Soft(), css=custom_css) as demo:
         # Input Column
         with gr.Column(scale=1, min_width=400):
             with gr.Column(elem_classes=["card"]):
-                gr.Markdown("### Upload Image")
+                gr.Markdown("### Upload Image", elem_classes=["header"])
                 image_input = gr.Image(label="", type="pil", elem_classes=["image-preview"])
                 analyze_btn = gr.Button("Analyze", variant="primary", elem_classes=["primary-button"])
                 
                 # Example Gallery
                 if example_images:
                     with gr.Column():
-                        gr.Markdown("### Example Images")
-                        gr.Markdown("Click on an example below to load it:")
+                        gr.Markdown("### Example Images", elem_classes=["header"])
+                        gr.Markdown("Click on an example below to load it:", elem_classes=["description"])
                         example_gallery = gr.Gallery(
                             value=example_images,
                             label=None,
@@ -319,15 +351,15 @@ with gr.Blocks(theme=gr.themes.Soft(), css=custom_css) as demo:
         # Output Column
         with gr.Column(scale=1, min_width=500):
             with gr.Column(elem_classes=["card"]):
-                gr.Markdown("### Analysis Results")
+                gr.Markdown("### Analysis Results", elem_classes=["header"])
                 
                 # Classification Results
                 with gr.Column(elem_classes=["label-container"]):
-                    gr.Markdown("**Diagnosis Confidence**")
+                    gr.Markdown("**Diagnosis Confidence**", elem_classes=["header"])
                     cls_output = gr.Label(label="", show_label=False)
                 
                 # Segmentation Results
-                gr.Markdown("**Segmentation Visualization**")
+                gr.Markdown("**Segmentation Visualization**", elem_classes=["header"])
                 seg_output = gr.Image(label="Lesion highlighted in green", elem_classes=["image-preview"])
                 
                 # Raw Mask (hidden by default)

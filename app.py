@@ -106,7 +106,7 @@ def preprocess_for_classification(image):
         image = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
         
         # Resize to model's expected input size
-        image = Image.fromarray(image).resize((400, 400))
+        image = Image.fromarray(image).resize((224, 224))
         image = np.array(image)
         
         # Enhanced normalization

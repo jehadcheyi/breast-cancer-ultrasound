@@ -2,123 +2,191 @@ import gradio as gr
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
-from PIL import Image
+from PIL import Image, ImageEnhance
 import cv2
 import os
 import logging
-from tensorflow.keras import regularizers
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load model
+# Load models with error handling
 try:
-    model_path = 'busi.h5'
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model file {model_path} not found")
-    
-    logger.info(f"Loading model from: {model_path}")
-    model = load_model(model_path)
-    logger.info("Model loaded successfully!")
-    
-    # Verify model architecture
-    logger.info(f"Model input shape: {model.input_shape}")
-    logger.info(f"Model output shape: {model.output_shape}")
-    
-except Exception as e:
-    logger.error(f"Error loading model: {str(e)}")
-    model = None
+    seg_model_path = 'unet.h5'
+    if not os.path.exists(seg_model_path):
+        raise FileNotFoundError(f"Segmentation model file {seg_model_path} not found")
+    seg_model = load_model(seg_model_path)
+    logger.info("Segmentation model loaded successfully!")
 
-# Define class labels (must match training order)
+    cls_model_path = 'cnn96.h5'
+    if not os.path.exists(cls_model_path):
+        raise FileNotFoundError(f"Classification model file {cls_model_path} not found")
+    cls_model = load_model(cls_model_path)
+    logger.info("Classification model loaded successfully!")
+
+except Exception as e:
+    logger.error(f"Error loading models: {str(e)}")
+    seg_model = None
+    cls_model = None
+
+# Labels
 class_labels = ['benign', 'malignant', 'normal']
 
-def preprocess_image(image):
-    """Preprocess image to EXACTLY match training conditions"""
+# Enhancement functions
+def fuzzy_enhancement(image):
+    enhancer = ImageEnhance.Contrast(image)
+    return enhancer.enhance(2.0)
+
+def sharpness_enhancement(image):
+    enhancer = ImageEnhance.Sharpness(image)
+    return enhancer.enhance(1.0)
+
+def brightness_enhancement(image):
+    enhancer = ImageEnhance.Brightness(image)
+    return enhancer.enhance(0.5)
+
+def rescale_image(image, target_size=(500, 500)):
+    return image.resize(target_size)
+
+def preprocess_for_segmentation(image):
     try:
-        # Convert to numpy array
         image = np.array(image)
-        
-        # Convert to RGB if needed (matches your training data loading)
-        if len(image.shape) == 2:  # Grayscale
-            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-        elif image.shape[2] == 4:  # RGBA
-            image = image[:, :, :3]
-        
-        # Resize to model's expected input size (224x224)
-        image = Image.fromarray(image).resize((224, 224))
-        image = np.array(image)
-        
-        # Normalize pixel values EXACTLY like during training
-        image = (image.astype('float32') / 255.0) - 0.5  # Zero-centering
-        
-        # Add batch dimension
+        original_shape = image.shape[:2]
+
+        if len(image.shape) == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+
+        image = cv2.resize(image, (224, 224))
+        image = image.astype('float32') / 255.0
+
+        image = np.expand_dims(image, axis=-1)
         image = np.expand_dims(image, axis=0)
-        
-        return image
+
+        return image, original_shape
     except Exception as e:
-        logger.error(f"Error preprocessing image: {str(e)}")
+        logger.error(f"Segmentation preprocessing error: {str(e)}")
+        return None, None
+
+def preprocess_for_classification(image):
+    try:
+        image = np.array(image)
+
+        if len(image.shape) == 2:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        elif image.shape[2] == 4:
+            image = image[:, :, :3]
+
+        image = Image.fromarray(image).resize((400, 400))
+        image = np.array(image)
+        image = (image.astype('float32') / 255.0) - 0.5
+
+        return np.expand_dims(image, axis=0)
+    except Exception as e:
+        logger.error(f"Classification preprocessing error: {str(e)}")
         return None
 
-def predict_image(image):
-    """Make prediction on the uploaded image"""
-    if model is None:
-        return {"Error": "Model failed to load. Please check if cnn96.h5 exists."}
-    
+def create_segmentation_overlay(original_image, mask):
     try:
-        # Preprocess the image
-        processed_image = preprocess_image(image)
-        if processed_image is None:
-            return {"Error": "Failed to process image"}
-        
-        # Verify input shape
-        if processed_image.shape[1:] != model.input_shape[1:]:
-            return {"Error": f"Input shape mismatch. Expected {model.input_shape[1:]}, got {processed_image.shape[1:]}"}
-        
-        # Make prediction
-        predictions = model.predict(processed_image, verbose=0)[0]
-        logger.info(f"Raw predictions: {predictions}")
-        
-        # Create dictionary of class probabilities
-        confidences = {
+        original_pil = Image.fromarray(original_image)
+        mask_pil = Image.fromarray((mask * 255).astype('uint8'))
+
+        # Refine mask using contours
+        mask_cv = np.array(mask_pil)
+        contours, _ = cv2.findContours(mask_cv, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        overlay_mask = np.zeros_like(mask_cv)
+        cv2.drawContours(overlay_mask, contours, -1, color=255, thickness=-1)  # fill
+        mask_pil = Image.fromarray(overlay_mask)
+
+        # Green overlay
+        green_mask = Image.new("RGB", original_pil.size, (0, 255, 0))
+        green_mask.putalpha(mask_pil.convert("L"))
+
+        overlayed = Image.alpha_composite(original_pil.convert("RGBA"), green_mask)
+
+        overlayed = fuzzy_enhancement(overlayed)
+        overlayed = sharpness_enhancement(overlayed)
+        overlayed = brightness_enhancement(overlayed)
+
+        return np.array(overlayed)
+    except Exception as e:
+        logger.error(f"Overlay creation error: {str(e)}")
+        return None
+
+def analyze_image(image):
+    if seg_model is None or cls_model is None:
+        return {"Error": "Models failed to load"}, None, None
+
+    try:
+        original_image = np.array(image)
+
+        seg_input, original_shape = preprocess_for_segmentation(original_image)
+        if seg_input is None:
+            return {"Error": "Segmentation preprocessing failed"}, None, None
+
+        mask = seg_model.predict(seg_input, verbose=0)[0]
+        mask = cv2.resize(mask.squeeze(), (original_shape[1], original_shape[0]))
+
+        # Threshold + morphological refinement
+        _, binary_mask = cv2.threshold(mask, 0.5, 1, cv2.THRESH_BINARY)
+        kernel = np.ones((5, 5), np.uint8)
+        binary_mask = cv2.morphologyEx(binary_mask.astype('uint8'), cv2.MORPH_CLOSE, kernel)
+        binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
+        mask = binary_mask
+
+        # Create green overlay
+        overlay = create_segmentation_overlay(original_image, mask)
+        if overlay is None:
+            return {"Error": "Overlay creation failed"}, None, None
+
+        # Classification
+        cls_input = preprocess_for_classification(overlay)
+        if cls_input is None:
+            return {"Error": "Classification preprocessing failed"}, overlay, None
+
+        predictions = cls_model.predict(cls_input, verbose=0)[0]
+        cls_result = {
             'benign': float(predictions[0]),
             'malignant': float(predictions[1]),
             'normal': float(predictions[2])
         }
-        
-        return confidences
+
+        return cls_result, overlay, None
+
     except Exception as e:
-        logger.error(f"Prediction error: {str(e)}")
-        return {"Error": f"Prediction error: {str(e)}"}
+        logger.error(f"Analysis error: {str(e)}")
+        return {"Error": f"Analysis failed: {str(e)}"}, None, None
 
 # Gradio interface
-title = "Breast Cancer Ultrasound Classification"
+title = "Breast Cancer Ultrasound Analysis"
 description = """
-Upload an ultrasound image (224x224) to classify as:
-- Benign (0)
-- Malignant (1) 
-- Normal (2)
-
-Model architecture:
-- 7 Conv layers with MaxPooling
-- 1024-unit Dense layer with L2 regularization
-- 50% Dropout
-- Trained with Adam (lr=0.0001)
+1. Segments the ultrasound image (green highlights lesion)
+2. Classifies the image with green overlay
+Models:
+- U-Net: 224x224 grayscale input
+- CNN96: 400x400 RGB with overlay
 """
 
-demo = gr.Interface(
-    fn=predict_image,
-    inputs=gr.Image(label="Upload Ultrasound Image", type="pil"),
-    outputs=gr.Label(num_top_classes=3, label="Prediction Results"),
-    title=title,
-    description=description,
-    examples=[
-        ["example_benign.png"],
-        ["example_malignant.png"],
-        ["example_normal.png"]
-    ] if all(os.path.exists(f"example_{cls}.png") for cls in ['benign', 'malignant', 'normal']) else None,
-    allow_flagging="never"
-)
+with gr.Blocks(theme=gr.themes.Soft()) as demo:
+    gr.Markdown(f"# {title}")
+    gr.Markdown(description)
+
+    with gr.Row():
+        with gr.Column():
+            image_input = gr.Image(label="Upload Ultrasound Image", type="pil")
+            analyze_btn = gr.Button("Analyze", variant="primary")
+
+        with gr.Column():
+            with gr.Tab("Classification Results"):
+                cls_output = gr.Label(label="Diagnosis Confidence")
+            with gr.Tab("Segmentation"):
+                seg_output = gr.Image(label="Image with Green Lesion Overlay")
+
+    analyze_btn.click(
+        fn=analyze_image,
+        inputs=image_input,
+        outputs=[cls_output, seg_output, gr.Image(visible=False)]
+    )
 
 if __name__ == "__main__":
     demo.launch()

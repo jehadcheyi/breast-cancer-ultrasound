@@ -31,7 +31,7 @@ except Exception as e:
     cls_model = None
 
 # Path to example images folder
-EXAMPLE_FOLDER = "examples"
+EXAMPLE_FOLDER = "example"
 if not os.path.exists(EXAMPLE_FOLDER):
     os.makedirs(EXAMPLE_FOLDER)
     logger.warning(f"Created empty examples folder at {EXAMPLE_FOLDER}")

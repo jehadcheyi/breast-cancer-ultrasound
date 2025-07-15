@@ -47,51 +47,36 @@ if os.path.exists(EXAMPLE_FOLDER):
 # Labels
 class_labels = ['benign', 'malignant', 'normal']
 
-# Enhancement functions
-def fuzzy_enhancement(image):
-    enhancer = ImageEnhance.Contrast(image)
-    return enhancer.enhance(2.0)
-
-def sharpness_enhancement(image):
-    enhancer = ImageEnhance.Sharpness(image)
-    return enhancer.enhance(1.0)
-
-def brightness_enhancement(image):
-    enhancer = ImageEnhance.Brightness(image)
-    return enhancer.enhance(0.5)
-
 def preprocess_for_segmentation(image):
     try:
-        image = np.array(image)
+        if isinstance(image, Image.Image):
+            image = np.array(image)
+        
         original_shape = image.shape[:2]
-
+        
         if len(image.shape) == 3:
             image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-
+        
         image = cv2.resize(image, (224, 224))
         image = image.astype('float32') / 255.0
-
         image = np.expand_dims(image, axis=-1)
-        image = np.expand_dims(image, axis=0)
-
-        return image, original_shape
+        return np.expand_dims(image, axis=0), original_shape
     except Exception as e:
         logger.error(f"Segmentation preprocessing error: {str(e)}")
         return None, None
 
 def preprocess_for_classification(image):
     try:
-        image = np.array(image)
-
+        if isinstance(image, Image.Image):
+            image = np.array(image)
+        
         if len(image.shape) == 2:
             image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
         elif image.shape[2] == 4:
             image = image[:, :, :3]
-
-        image = Image.fromarray(image).resize((400, 400))
-        image = np.array(image)
+        
+        image = cv2.resize(image, (400, 400))
         image = (image.astype('float32') / 255.0) - 0.5
-
         return np.expand_dims(image, axis=0)
     except Exception as e:
         logger.error(f"Classification preprocessing error: {str(e)}")
@@ -99,26 +84,25 @@ def preprocess_for_classification(image):
 
 def create_segmentation_overlay(original_image, mask):
     try:
-        original_pil = Image.fromarray(original_image)
-        mask_pil = Image.fromarray((mask * 255).astype('uint8'))
-
-        # Refine mask using contours
-        mask_cv = np.array(mask_pil)
-        contours, _ = cv2.findContours(mask_cv, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        overlay_mask = np.zeros_like(mask_cv)
-        cv2.drawContours(overlay_mask, contours, -1, color=255, thickness=-1)  # fill
-        mask_pil = Image.fromarray(overlay_mask)
-
-        # Green overlay
+        if isinstance(original_image, Image.Image):
+            original_pil = original_image
+            original_image = np.array(original_image)
+        else:
+            original_pil = Image.fromarray(original_image)
+        
+        mask = (mask * 255).astype('uint8')
+        mask = cv2.resize(mask, (original_image.shape[1], original_image.shape[0]))
+        
+        # Refine mask
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        overlay_mask = np.zeros_like(mask)
+        cv2.drawContours(overlay_mask, contours, -1, 255, -1)
+        
+        # Create overlay
         green_mask = Image.new("RGB", original_pil.size, (0, 255, 0))
-        green_mask.putalpha(mask_pil.convert("L"))
-
+        green_mask.putalpha(Image.fromarray(overlay_mask).convert("L"))
+        
         overlayed = Image.alpha_composite(original_pil.convert("RGBA"), green_mask)
-
-        overlayed = fuzzy_enhancement(overlayed)
-        overlayed = sharpness_enhancement(overlayed)
-        overlayed = brightness_enhancement(overlayed)
-
         return np.array(overlayed)
     except Exception as e:
         logger.error(f"Overlay creation error: {str(e)}")
@@ -126,127 +110,104 @@ def create_segmentation_overlay(original_image, mask):
 
 def analyze_image(image):
     if seg_model is None or cls_model is None:
-        return {"Error": "Models failed to load"}, None, None
-
+        return {"Error": "Models failed to load"}, None
+    
     try:
-        original_image = np.array(image)
-
-        # Perform segmentation first (as per training workflow)
+        # Convert to numpy array if PIL Image
+        if isinstance(image, Image.Image):
+            original_image = np.array(image)
+        else:
+            original_image = image.copy()
+        
+        # Segmentation
         seg_input, original_shape = preprocess_for_segmentation(original_image)
         if seg_input is None:
-            return {"Error": "Segmentation preprocessing failed"}, None, None
-
-        mask = seg_model.predict(seg_input, verbose=0)[0]
-        mask = cv2.resize(mask.squeeze(), (original_shape[1], original_shape[0]))
-
-        # Threshold + morphological refinement
+            return {"Error": "Segmentation preprocessing failed"}, None
+        
+        mask = seg_model.predict(seg_input, verbose=0)[0].squeeze()
+        mask = cv2.resize(mask, (original_shape[1], original_shape[0]))
+        
+        # Threshold and clean mask
         _, binary_mask = cv2.threshold(mask, 0.5, 1, cv2.THRESH_BINARY)
-        kernel = np.ones((5, 5), np.uint8)
+        kernel = np.ones((5,5), np.uint8)
         binary_mask = cv2.morphologyEx(binary_mask.astype('uint8'), cv2.MORPH_CLOSE, kernel)
         binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
-        mask = binary_mask
-
-        # Create green overlay (always create it for classification)
-        overlay = create_segmentation_overlay(original_image, mask)
+        
+        # Create overlay
+        overlay = create_segmentation_overlay(original_image, binary_mask)
         if overlay is None:
-            return {"Error": "Overlay creation failed"}, None, None
-
-        # Classification with overlay (as trained)
+            return {"Error": "Overlay creation failed"}, None
+        
+        # Classification
         cls_input = preprocess_for_classification(overlay)
         if cls_input is None:
-            return {"Error": "Classification preprocessing failed"}, None, None
-
+            return {"Error": "Classification preprocessing failed"}, None
+        
         predictions = cls_model.predict(cls_input, verbose=0)[0]
         cls_result = {
             'benign': float(predictions[0]),
             'malignant': float(predictions[1]),
             'normal': float(predictions[2])
         }
-
-        # Only show overlay if not normal
-        final_display = overlay if np.argmax(predictions) != 2 else original_image
-
-        return cls_result, final_display, None
-
+        
+        # Return original image if normal, otherwise overlay
+        final_display = original_image if np.argmax(predictions) == 2 else overlay
+        
+        return cls_result, final_display
+    
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}")
-        return {"Error": f"Analysis failed: {str(e)}"}, None, None
+        return {"Error": f"Analysis failed: {str(e)}"}, None
 
 # Gradio interface
-title = "Breast Ultrasound Diagnostic Assistant"
-description = """
-**AI-powered analysis of breast ultrasound images**  
-This tool helps medical professionals by:
-1. **Segmenting** potential lesions (highlighted in green)
-2. **Classifying** findings as benign, malignant, or normal  
-3. **Displaying** original images when no abnormalities are detected
-
-*Model Specifications*:  
-- Segmentation: U-Net (224×224 grayscale)  
-- Classification: Custom CNN (400×400 RGB with segmentation overlay)
-"""
-
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
-    gr.Markdown(f"## {title}")
-    gr.Markdown(description)
+    gr.Markdown("""
+    # Breast Ultrasound Diagnostic Assistant  
+    **AI-powered analysis of breast ultrasound images**  
+    This tool helps medical professionals by:  
+    - Segmenting potential lesions (highlighted in green)  
+    - Classifying findings as benign, malignant, or normal  
+    - Displaying original images when no abnormalities are detected  
     
+    *Model Specifications*:  
+    - Segmentation: U-Net (224×224 grayscale)  
+    - Classification: Custom CNN (400×400 RGB with segmentation overlay)  
+    """)
+
     with gr.Row():
-        # Input Column
         with gr.Column():
-            with gr.Group():
-                gr.Markdown("### Patient Image Input")
-                with gr.Row():
-                    image_input = gr.Image(
-                        label="Upload ultrasound scan (PNG, JPG, JPEG, BMP)",
-                        type="pil",
-                        height=300
-                    )
-                with gr.Row():
-                    analyze_btn = gr.Button(
-                        "Analyze Image",
-                        variant="primary",
-                        size="lg"
-                    )
+            gr.Markdown("### Patient Image Input")
+            image_input = gr.Image(
+                label="Upload ultrasound scan (PNG, JPG, JPEG, BMP)",
+                type="pil",
+                height=300
+            )
+            analyze_btn = gr.Button("Analyze Image", variant="primary")
             
             if example_images:
-                with gr.Group():
-                    gr.Markdown("### Sample Cases")
-                    gr.Markdown("Click any example below to load it:")
-                    example_gallery = gr.Gallery(
-                        value=example_images,
-                        label=None,
-                        columns=3,
-                        height="auto",
-                        object_fit="contain"
-                    )
+                gr.Markdown("### Sample Cases")
+                gr.Markdown("Click any example below to load it:")
+                example_gallery = gr.Gallery(
+                    value=example_images,
+                    columns=3,
+                    height="auto",
+                    object_fit="contain"
+                )
 
-        # Results Column
         with gr.Column():
-            with gr.Group():
-                gr.Markdown("### Analysis Results")
-                
-                with gr.Accordion("Classification Report", open=True):
-                    cls_output = gr.Label(
-                        label="Diagnostic Confidence",
-                        num_top_classes=3,
-                        show_label=False
-                    )
-                
-                with gr.Accordion("Segmentation Visualization", open=True):
-                    seg_output = gr.Image(
-                        label="Lesion Segmentation",
-                        height=300,
-                        interactive=False
-                    )
-                
-                gr.Markdown("""
-                **Interpretation Guide**:  
-                - Green areas indicate detected lesions  
-                - Normal cases show the original image  
-                - Confidence scores range from 0 (low) to 1 (high)
-                """)
+            gr.Markdown("### Analysis Results")
+            with gr.Tab("Classification"):
+                cls_output = gr.Label(label="Diagnostic Confidence")
+            with gr.Tab("Segmentation"):
+                seg_output = gr.Image(label="Lesion Segmentation", height=300)
+            
+            gr.Markdown("""
+            **Interpretation Guide**:  
+            - Green areas indicate detected lesions  
+            - Normal cases show the original image  
+            - Confidence scores range from 0 (low) to 1 (high)  
+            """)
 
-    # Example selection handler
     if example_images:
         example_gallery.select(
             fn=lambda evt: example_images[evt.index],
@@ -256,7 +217,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
     analyze_btn.click(
         fn=analyze_image,
         inputs=image_input,
-        outputs=[cls_output, seg_output, gr.Image(visible=False)]
+        outputs=[cls_output, seg_output]
     )
 
 if __name__ == "__main__":

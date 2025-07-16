@@ -7,7 +7,7 @@
 *.ckpt
 
 # Ignore entire secure_models folder (optional, if you use one)
-secure_models/
+models/
 
 # Ignore common sensitive files
 *.env

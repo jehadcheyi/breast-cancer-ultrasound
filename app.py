@@ -13,13 +13,13 @@ logger = logging.getLogger(__name__)
 
 # Load models with error handling
 try:
-    seg_model_path = 'model/unet.h5'
+    seg_model_path = 'models/unet.h5'
     if not os.path.exists(seg_model_path):
         raise FileNotFoundError(f"Segmentation model file {seg_model_path} not found")
     seg_model = load_model(seg_model_path)
     logger.info("Segmentation model loaded successfully!")
 
-    cls_model_path = 'modelcnn96.h5'
+    cls_model_path = 'models/cnn96.h5'
     if not os.path.exists(cls_model_path):
         raise FileNotFoundError(f"Classification model file {cls_model_path} not found")
     cls_model = load_model(cls_model_path)

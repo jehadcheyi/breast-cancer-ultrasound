@@ -182,94 +182,85 @@ def analyze_image(image):
         logger.error(f"Analysis error: {str(e)}")
         return {"Error": f"Analysis failed: {str(e)}"}, None, None
 
-import gradio as gr
-
-title = "🩺 Breast Ultrasound Diagnostic Assistant"
+# Gradio interface
+title = "Breast Ultrasound Diagnostic Assistant"
 description = """
-<div style='font-size: 16px; line-height: 1.6; font-family: Arial, sans-serif;'>
-<b>Welcome to the Breast Ultrasound Diagnostic Assistant</b><br><br>
-This intelligent system helps radiologists and researchers analyze ultrasound images of the breast with precision.<br>
-Using advanced AI models, it provides:<br>
-🟢 <b>Lesion Detection</b>: Highlights potential abnormalities on the scan<br>
-📊 <b>Malignancy Prediction</b>: Estimates cancer risk with confidence scores<br>
-🖼️ <b>Visual Explanations</b>: Offers clear overlays and segmentation results<br><br>
+This AI-powered tool helps analyze breast ultrasound images by:
 
-<b>📌 How to Use:</b>
-<ol>
-<li>Upload a breast ultrasound image or select one from the gallery</li>
-<li>Click <b>'Analyze Image'</b> to let the AI process the scan</li>
-<li>Review the diagnostic predictions and visual outputs</li>
-</ol>
+1. **Identifying potential lesions** (highlighted in green)
+2. **Assessing malignancy risk** with confidence scores
+3. **Displaying results** with clear visualizations
 
-⚠️ <i><b>Disclaimer:</b> This tool is intended for research and clinical assistance only. It does not replace professional medical diagnosis.</i>
-</div>
+**How to use:**
+- Upload an ultrasound image or select from examples
+- Click "Analyze" to process the image
+- Review the diagnostic confidence scores
+- Examine the lesion segmentation (if applicable)
+
+**Note:** This tool is for professional assistance only and should not replace clinical judgment.
 """
 
-# Simulated example images list
-example_images = []  # <-- replace with your actual examples, e.g., [(img1, "Benign"), (img2, "Malignant")]
-
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
-    gr.Markdown(f"<h1 style='text-align: center; font-size: 2.5em;'>{title}</h1>")
+    gr.Markdown(f"# {title}")
     gr.Markdown(description)
 
     with gr.Row():
-        # Left Panel: Image Input and Gallery
-        with gr.Column(scale=1):
-            with gr.Group():
-                gr.Markdown("## 📥 Upload Ultrasound Image")
-                image_input = gr.Image(label="Choose or drag an image", type="pil")
-                analyze_btn = gr.Button("🔍 Analyze Image", variant="primary")
-
+        with gr.Column():
+            gr.Markdown("### Input Image")
+            image_input = gr.Image(label="Upload Ultrasound Scan", type="pil")
+            analyze_btn = gr.Button("Analyze Image", variant="primary")
+            
+            # Example Gallery
             if example_images:
-                gr.Markdown("## 🖼️ Sample Scans")
-                gallery = gr.Gallery(
-                    value=[(img, name) for img, name in example_images],
-                    label="Example Ultrasound Images",
-                    columns=3,
-                    height="auto",
-                    object_fit="contain"
-                )
+                gr.Markdown("### Sample Scans (Click to load)")
+                with gr.Row():
+                    example_gallery = gr.Gallery(
+                        value=example_images,
+                        label="Example ultrasound images",
+                        columns=3,
+                        rows=2,
+                        height="auto",
+                        object_fit="contain"
+                    )
+            
+            # Function to handle gallery selection
+            def select_example(evt: gr.SelectData):
+                return example_images[evt.index]
+            
+            if example_images:
+                example_gallery.select(select_example, outputs=image_input)
 
-                def select_example(evt: gr.SelectData):
-                    return example_images[evt.index][0]
-
-                gallery.select(select_example, outputs=image_input)
-
-        # Right Panel: Results
-        with gr.Column(scale=2):
-            with gr.Tab("📊 Diagnostic Assessment"):
-                gr.Markdown("### AI-Based Diagnosis")
+        with gr.Column():
+            gr.Markdown("### Analysis Results")
+            with gr.Tab("Diagnostic Assessment"):
                 cls_output = gr.Label(
-                    label="Prediction Confidence",
+                    label="Diagnostic Confidence Scores",
                     num_top_classes=3
                 )
                 gr.Markdown("""
-                **🧠 Interpretation Guide**  
-                - <b>Benign</b>: Non-cancerous lesion (usually safe, but monitorable)  
-                - <b>Malignant</b>: Suspicious for cancer (requires clinical attention)  
-                - <b>Normal</b>: No findings indicative of disease  
+                **Interpretation Guide:**
+                - **Benign:** Non-cancerous finding (typically <2% risk)
+                - **Malignant:** Suspicious for cancer (requires follow-up)
+                - **Normal:** No significant findings detected
                 """)
-
-            with gr.Tab("🧬 Lesion Visualization"):
-                gr.Markdown("### Segmentation Results")
+            
+            with gr.Tab("Lesion Visualization"):
                 seg_output = gr.Image(
-                    label="Lesion Region (Green Highlight)",
+                    label="Identified Lesion (green highlight)",
                     interactive=False
                 )
                 gr.Markdown("""
-                **🧾 Explanation**  
-                - Green mask indicates potential lesion zones  
-                - Normal cases will show the unaltered image  
-                - Enhancements are provided for interpretability  
+                **About the visualization:**
+                - Green areas indicate potential lesions
+                - Normal scans show the original image
+                - Visualization has been enhanced for clarity
                 """)
 
-    # Event trigger
     analyze_btn.click(
-        fn=analyze_image,  # Make sure your function is defined
+        fn=analyze_image,
         inputs=image_input,
-        outputs=[cls_output, seg_output]
+        outputs=[cls_output, seg_output, gr.Image(visible=False)]
     )
 
-# Launch the Gradio app
 if __name__ == "__main__":
     demo.launch()

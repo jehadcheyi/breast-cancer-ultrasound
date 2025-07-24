@@ -20,7 +20,7 @@ try:
     seg_model_path = hf_hub_download(
         repo_id="jehadcheyi/bc_models",
         filename="unet.h5",
-        token=os.environ["HF_TOKEN"]
+        token=os.environ["jehad"]
     )
     seg_model = load_model(seg_model_path)
     logger.info("Segmentation model loaded successfully!")
@@ -28,7 +28,7 @@ try:
     cls_model_path = hf_hub_download(
         repo_id="jehadcheyi/bc_models",
         filename="cnn96.h5",
-        token=os.environ["HF_TOKEN"]
+        token=os.environ["jehad"]
     )
     cls_model = load_model(cls_model_path)
     logger.info("Classification model loaded successfully!")

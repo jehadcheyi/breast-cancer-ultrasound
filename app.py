@@ -7,30 +7,26 @@ import cv2
 import os
 import logging
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-import os
-import logging
+import traceback
 from huggingface_hub import hf_hub_download
 from tensorflow.keras.models import load_model
 
+# Set up logging once
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 try:
-    # Load UNet segmentation model from private repo
     seg_model_path = hf_hub_download(
-        repo_id="jehadcheyi/bc_models",  
+        repo_id="jehadcheyi/bc_models",
         filename="unet.h5",
         token=os.environ["HF_TOKEN"]
     )
     seg_model = load_model(seg_model_path)
     logger.info("Segmentation model loaded successfully!")
 
-    # Load CNN classification model from private repo
     cls_model_path = hf_hub_download(
-        repo_id="jehadcheyi/bc_models",  
+        repo_id="jehadcheyi/bc_models",
         filename="cnn96.h5",
         token=os.environ["HF_TOKEN"]
     )
@@ -39,6 +35,7 @@ try:
 
 except Exception as e:
     logger.error(f"Error loading models: {str(e)}")
+    traceback.print_exc()
     seg_model = None
     cls_model = None
 

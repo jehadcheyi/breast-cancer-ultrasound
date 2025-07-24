@@ -28,7 +28,7 @@ try:
     cls_model_path = hf_hub_download(
         repo_id="jehadcheyi/bc_models",
         filename="cnn96.h5",
-        token=os.environ["jehad"]
+        token=os.environ["jehad1"]
     )
     cls_model = load_model(cls_model_path)
     logger.info("Classification model loaded successfully!")

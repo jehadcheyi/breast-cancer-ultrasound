@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 try:
     # Load UNet segmentation model from private repo
     seg_model_path = hf_hub_download(
-        repo_id="jehadcheyi/private-bc-models",  # 👈 Replace with your actual private model repo name
+        repo_id="jehadcheyi/bc_models",  
         filename="unet.h5",
         token=os.environ["HF_TOKEN"]
     )
@@ -30,7 +30,7 @@ try:
 
     # Load CNN classification model from private repo
     cls_model_path = hf_hub_download(
-        repo_id="jehadcheyi/private-bc-models",  # 👈 Same repo or different if needed
+        repo_id="jehadcheyi/bc_models",  
         filename="cnn96.h5",
         token=os.environ["HF_TOKEN"]
     )

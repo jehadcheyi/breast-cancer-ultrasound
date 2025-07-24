@@ -11,17 +11,29 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load models with error handling
+import os
+import logging
+from huggingface_hub import hf_hub_download
+from tensorflow.keras.models import load_model
+
+logger = logging.getLogger(__name__)
+
 try:
-    seg_model_path = 'models/unet.h5'
-    if not os.path.exists(seg_model_path):
-        raise FileNotFoundError(f"Segmentation model file {seg_model_path} not found")
+    # Load UNet segmentation model from private repo
+    seg_model_path = hf_hub_download(
+        repo_id="jehadcheyi/private-bc-models",  # 👈 Replace with your actual private model repo name
+        filename="unet.h5",
+        token=os.environ["HF_TOKEN"]
+    )
     seg_model = load_model(seg_model_path)
     logger.info("Segmentation model loaded successfully!")
 
-    cls_model_path = 'models/cnn96.h5'
-    if not os.path.exists(cls_model_path):
-        raise FileNotFoundError(f"Classification model file {cls_model_path} not found")
+    # Load CNN classification model from private repo
+    cls_model_path = hf_hub_download(
+        repo_id="jehadcheyi/private-bc-models",  # 👈 Same repo or different if needed
+        filename="cnn96.h5",
+        token=os.environ["HF_TOKEN"]
+    )
     cls_model = load_model(cls_model_path)
     logger.info("Classification model loaded successfully!")
 
@@ -29,6 +41,7 @@ except Exception as e:
     logger.error(f"Error loading models: {str(e)}")
     seg_model = None
     cls_model = None
+
 
 # Path to example images folder
 EXAMPLE_FOLDER = "example"

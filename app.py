@@ -383,14 +383,7 @@ instructions = """
 """
 
 disclaimer = """
-<div style="background: linear-gradient(45deg, #ff6b6b, #ffa500); color: white; padding: 20px; border-radius: 15px; margin: 20px 0;">
-    <h3 style="margin-bottom: 15px;">⚠️ Important Medical Disclaimer</h3>
-    <p style="font-size: 16px; line-height: 1.5;">
-        <strong>This AI system is designed for professional medical assistance only.</strong> Results should always be interpreted by qualified healthcare professionals. 
-        This tool does not replace clinical judgment, physical examination, or additional diagnostic procedures. 
-        Always consult with a radiologist or oncologist for definitive diagnosis and treatment planning.
-    </p>
-</div>
+
 """
 
 # Create the interface

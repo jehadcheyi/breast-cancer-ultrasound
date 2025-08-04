@@ -441,8 +441,8 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(), title="Breast Ultrasound 
                 example_gallery = gr.Gallery(
                     value=example_images,
                     label="Example ultrasound scans from our database",
-                    columns=3,
-                    rows=3,
+                    columns=5,
+                    rows=5,
                     height=300,
                     object_fit="cover",
                     elem_classes=["example-gallery"]

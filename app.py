@@ -350,7 +350,7 @@ description = """
 <div style="text-align: center; padding: 20px;">
     <h2 style="color: #2c3e50; margin-bottom: 20px;">🔬 Intelligent Medical Image Analysis Platform</h2>
     <p style="font-size: 18px; color: #34495e; line-height: 1.6; max-width: 800px; margin: 0 auto;">
-        Our state-of-the-art AI system combines advanced deep learning models to provide comprehensive breast ultrasound analysis. 
+        Our AI system combines advanced deep learning models to provide comprehensive breast ultrasound analysis. 
         The system performs dual-stage analysis: <strong>lesion detection & segmentation</strong> followed by <strong>malignancy risk assessment</strong>.
     </p>
 </div>
@@ -358,21 +358,21 @@ description = """
 
 instructions = """
 <div style="background: rgba(255, 255, 255, 0.9); padding: 25px; border-radius: 15px; margin: 20px 0;">
-    <h3 style="color: #2980b9; margin-bottom: 15px;">📋 How to Use This System</h3>
+    <h3 style="color: #2980b9; margin-bottom: 15px;">📋 How to Use This System | چەوانیا بکارئینانا پروگرامی</h3>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
         <div style="text-align: center;">
             <div style="font-size: 30px; margin-bottom: 10px;">📤</div>
-            <h4 style="color: #27ae60;">Step 1: Upload Image</h4>
+            <h4 style="color: #27ae60;">Step 1: Upload Image | وێنەی دابگرە</h4>
             <p>Upload a breast ultrasound image or select from our example gallery</p>
         </div>
         <div style="text-align: center;">
             <div style="font-size: 30px; margin-bottom: 10px;">🔍</div>
-            <h4 style="color: #e74c3c;">Step 2: AI Analysis</h4>
+            <h4 style="color: #e74c3c;">Step 2: AI Analysis | شلوڤەکرن</h4>
             <p>Our AI models analyze the image for lesions and assess malignancy risk</p>
         </div>
         <div style="text-align: center;">
             <div style="font-size: 30px; margin-bottom: 10px;">📊</div>
-            <h4 style="color: #8e44ad;">Step 3: Review Results</h4>
+            <h4 style="color: #8e44ad;">Step 3: Review Results | ئەنجام</h4>
             <p>Examine confidence scores, lesion visualization, and clinical recommendations</p>
         </div>
     </div>
@@ -412,17 +412,17 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(), title="Breast Ultrasound 
         # Left Column - Input Section
         with gr.Column(scale=1):
             gr.HTML('<div class="analysis-card">')
-            gr.Markdown("### 📤 **Image Upload Center**")
+            gr.Markdown("### 📤 **Image Upload Center | داگرتنا وێنەی**")
             
             image_input = gr.Image(
-                label="Upload Breast Ultrasound Scan",
+                label="Upload | داگرتن",
                 type="pil",
                 height=400,
                 elem_classes=["image-container"]
             )
             
             analyze_btn = gr.Button(
-                "🔬 Analyze Image with AI",
+                "🔬 Analyze Image with AI | شلوڤەکرن",
                 variant="primary",
                 size="lg",
                 elem_classes=["analyze-button"]
@@ -439,14 +439,14 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(), title="Breast Ultrasound 
             # Example Gallery
             if example_images:
                 gr.HTML('<div class="analysis-card">')
-                gr.Markdown("### 🖼️ **Sample Ultrasound Images**")
-                gr.Markdown("*Click on any image below to load it for analysis*")
+                gr.Markdown("### 🖼️ **Sample Ultrasound Images | نموونە**")
+                gr.Markdown("*Click on any image below to load it for analysis | وێنەکی هەلبژێرە")
                 
                 example_gallery = gr.Gallery(
                     value=example_images,
                     label="Example ultrasound scans from our database",
-                    columns=2,
-                    rows=2,
+                    columns=3,
+                    rows=3,
                     height=300,
                     object_fit="cover",
                     elem_classes=["example-gallery"]
@@ -456,12 +456,12 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(), title="Breast Ultrasound 
         # Right Column - Results Section
         with gr.Column(scale=1):
             gr.HTML('<div class="analysis-card results-section">')
-            gr.Markdown("### 📊 **AI Analysis Results & Clinical Insights**")
+            gr.Markdown("### 📊 **AI Analysis Results & Clinical Insights | ئەنجامێ دوماهیکێ**")
             
             # Combined Results Display
             with gr.Row():
                 with gr.Column():
-                    gr.Markdown("#### 🎯 **Diagnostic Confidence Scores**")
+                    gr.Markdown("#### 🎯 **Diagnostic Confidence Scores | رێژا دیارکرنێ**")
                     cls_output = gr.Label(
                         label="AI Confidence Assessment",
                         num_top_classes=3,

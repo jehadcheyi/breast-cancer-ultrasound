@@ -350,7 +350,7 @@ title = "🏥 Advanced Breast Ultrasound AI Diagnostic System"
 
 description = """
 <div style="text-align: center; padding: 20px;">
-    <h2 style="color: #2c3e50; margin-bottom: 33px;">پروگرامێ زیرەکیا دەستکرد بە دەستنیشانکرنا شیرپەنجا مەمکان</h2>
+    <h2 style="color: #2980b9; margin-bottom: 33px;">پروگرامێ زیرەکیا دەستکرد بو دەستنیشانکرنا شیرپەنجا مەمکان</h2>
     <h2 style="color: #2c3e50; margin-bottom: 20px;">🔬 Intelligent Medical Image Analysis Platform</h2>
     <p style="font-size: 18px; color: #34495e; line-height: 1.6; max-width: 800px; margin: 0 auto;">
         Our AI system combines advanced deep learning models to provide comprehensive breast ultrasound analysis. 
@@ -360,7 +360,7 @@ description = """
 """
 
 instructions = """
-<div style="background: rgba(255, 255, 255, 0.9); padding: 25px; border-radius: 15px; margin: 20px 0;">
+<div style="background: rgba(255, 255, 255, 0.9);"text-align: center; padding: 25px; border-radius: 15px; margin: 20px 0;">
     <h3 style="color: #2980b9; margin-bottom: 15px;">📋 How to Use This System | چەوانیا بکارئینانا پروگرامی</h3>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
         <div style="text-align: center;">

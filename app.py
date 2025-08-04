@@ -360,7 +360,7 @@ description = """
 """
 
 instructions = """
-<div style="background: rgba(255, 255, 255, 0.9);"text-align: center; padding: 25px; border-radius: 15px; margin: 20px 0;">
+<div style="background: rgba(255, 255, 255, 0.9); text-align: center; padding: 25px; border-radius: 15px; margin: 20px 0;">
     <h3 style="color: #2980b9; margin-bottom: 15px;">📋 How to Use This System | چەوانیا بکارئینانا پروگرامی</h3>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
         <div style="text-align: center;">

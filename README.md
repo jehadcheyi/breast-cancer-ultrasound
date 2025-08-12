@@ -20,6 +20,8 @@ Paper:
 Advanced CNN-Based Classification and Segmentation for Enhanced Breast Cancer Ultrasound Imaging
 J Cheyi, YÇ Kaya - Gazi University Journal of Science Part A: Engineering, 2024
 
+https://dergipark.org.tr/en/download/article-file/4129903
+
 ---
 
 ## 🚀 Features

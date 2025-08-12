@@ -1,14 +1,3 @@
----
-title: Breast Cancer Ultrasound
-emoji: 📉
-colorFrom: pink
-colorTo: gray
-sdk: gradio
-sdk_version: 5.37.0
-app_file: app.py
-pinned: false
----
-
 # 🧠 Breast Ultrasound Diagnostic Assistant
 
 > An AI-powered web application for the **detection and classification** of breast lesions using **ultrasound imaging**, powered by deep learning (U-Net for segmentation and CNN for classification).

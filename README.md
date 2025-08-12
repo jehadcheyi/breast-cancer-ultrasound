@@ -15,7 +15,10 @@ The **Breast Ultrasound Diagnostic Assistant** is a medical imaging tool that:
   - **Normal** cases
 - 🖼️ Returns a **visual overlay** showing highlighted lesion areas in green
 
-> ⚠️ **Disclaimer**: This tool is intended for research and educational purposes only. It should not replace expert clinical evaluation.
+Publications & Outputs
+📚
+Advanced CNN-Based Classification and Segmentation for Enhanced Breast Cancer Ultrasound Imaging
+J Cheyi, YÇ Kaya - Gazi University Journal of Science Part A: Engineering, 2024
 
 ---
 

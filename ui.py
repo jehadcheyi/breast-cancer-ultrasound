@@ -179,7 +179,7 @@ with gr.Blocks(css=custom_css, title='BREAST AI PRO - Ultrasound (Pro UI)') as d
                     with gr.Group():
                         gr.HTML('<div class="analysis-card">')
                         gr.Markdown('### 📤 Upload Ultrasound Image')
-                        image_input = gr.Image(label='Upload Ultrasound Image', type='numpy', height=400')
+                        image_input = gr.Image(label='Upload Ultrasound Image', type='numpy', height=400)
                         with gr.Row():
                             submit_btn = gr.Button('🔍 Analyze Image', variant='primary')
                             clear_btn = gr.Button('🗑️ Clear', variant='secondary')

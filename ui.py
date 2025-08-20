@@ -248,7 +248,7 @@ with gr.Blocks(css=custom_css, title='BREAST AI PRO - Ultrasound (Pro UI)') as d
 
     def handle_submit(image):
         if image is None:
-            return ('<div style="padding:20px; background:#fee; border-radius:8px;'><h3>No image provided</h3></div>', None, None, None, None, None, None, "Status: No image")
+            return ("<div style='padding:20px; background:#fee; border-radius:8px;'><h3>No image provided</h3></div>", None, None, None, None, None, None, "Status: No image")
         probs, display_img, analysis_html, status_text = analyze_core(image)
         _update_stats_and_persist(probs)
         diagnosis_html = _make_diagnosis_html(probs, analysis_html)

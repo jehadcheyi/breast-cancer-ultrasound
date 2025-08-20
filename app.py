@@ -540,8 +540,6 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(), title="Breast Ultrasound 
 if __name__ == "__main__":
     demo.launch(
         share=True,
-        server_name="0.0.0.0",
-        server_port=7860,
         show_error=True,
         favicon_path=None,
         ssl_verify=False

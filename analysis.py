@@ -1,4 +1,3 @@
-
 import numpy as np
 import cv2
 
@@ -9,7 +8,6 @@ from preprocessing import (
     create_segmentation_overlay
 )
 
-# Always return numeric values for the UI's Label/plots (avoid pydantic errors)
 SAFE_LABEL_DEFAULT = {
     "Benign (Non-cancerous)": 0.0,
     "Malignant (Suspicious)": 0.0,
@@ -21,9 +19,6 @@ def _entropy(probs):
     return float(-(p * np.log(p)).sum() / np.log(len(p)))
 
 def analyze_core(image):
-    """Run the full ultrasound pipeline and return:
-    (probs_dict, display_image_np, analysis_html, status_text)
-    """
     if seg_model is None or cls_model is None:
         return SAFE_LABEL_DEFAULT, None, (
             "❌ <b>Analysis Failed</b>: Models could not be loaded. Check credentials or network."
@@ -35,10 +30,7 @@ def analyze_core(image):
         ), "🟡 Status: Waiting for Input"
 
     try:
-        # Ensure numpy array
         original_image = np.array(image)
-
-        # Segmentation
         seg_input, original_shape = preprocess_for_segmentation(original_image)
         if seg_input is None:
             return SAFE_LABEL_DEFAULT, None, (
@@ -48,20 +40,17 @@ def analyze_core(image):
         mask = seg_model.predict(seg_input, verbose=0)[0]
         mask = cv2.resize(mask.squeeze(), (original_shape[1], original_shape[0]), interpolation=cv2.INTER_LINEAR)
 
-        # Binary refinement
         _, binary_mask = cv2.threshold(mask, 0.5, 1, cv2.THRESH_BINARY)
         kernel = np.ones((5, 5), np.uint8)
         binary_mask = cv2.morphologyEx(binary_mask.astype('uint8'), cv2.MORPH_CLOSE, kernel)
         binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
 
-        # Overlay for classification
         overlay = create_segmentation_overlay(original_image, binary_mask)
         if overlay is None:
             return SAFE_LABEL_DEFAULT, None, (
                 "❌ <b>Visualization Error</b>: Unable to create overlay."
             ), "🔴 Status: Visualization Failed"
 
-        # Classification
         cls_input = preprocess_for_classification(overlay)
         if cls_input is None:
             return SAFE_LABEL_DEFAULT, None, (
@@ -75,7 +64,6 @@ def analyze_core(image):
             "Normal (No findings)": float(preds[2]),
         }
 
-        # Analysis summary
         top_idx = int(np.argmax(preds))
         top_conf = float(preds[top_idx]) * 100.0
         if top_idx == 0:
@@ -102,5 +90,5 @@ def analyze_core(image):
     except Exception as e:
         logger.error(f"Analysis error: {e}")
         return SAFE_LABEL_DEFAULT, None, (
-            f"<h3>❌ SYSTEM ERROR</h3><p><b>Error:</b> {e}</p>"
+            f"""<h3>❌ SYSTEM ERROR</h3><p><b>Error:</b> {e}</p>"""
         ), "🔴 Status: System Error"

@@ -164,8 +164,7 @@ with gr.Blocks(css=custom_css, title="BREAST AI PRO - Enhanced Cancer Detection"
                         )
 
                         gr.Markdown(
-                            "**Supported formats:** PNG, JPG, JPEG, TIF  
-"
+                            "**Supported formats:** PNG, JPG, JPEG, TIF "
                             "**Recommended size:** 500×500 pixels or larger"
                         )
 

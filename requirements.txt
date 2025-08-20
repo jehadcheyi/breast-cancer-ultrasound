@@ -3,3 +3,4 @@ pillow>=9.0.0
 opencv-python-headless>=4.5.0
 gradio>=3.0.0
 huggingface_hub
+matplotlib

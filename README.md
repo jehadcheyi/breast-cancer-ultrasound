@@ -9,161 +9,88 @@ app_file: app.py
 pinned: false
 ---
 
-# 🧠 Breast Ultrasound Diagnostic Assistant
+# Breast Ultrasound Diagnostic Assistant
 
-> An AI-powered web application for the **detection and classification** of breast lesions using **ultrasound imaging**, powered by deep learning (U-Net for segmentation and CNN for classification).
+**Live demo:** [huggingface.co/spaces/jehadcheyi/bc-ultrasound](https://huggingface.co/spaces/jehadcheyi/bc-ultrasound)
 
----
+A web application for detecting and classifying breast lesions in ultrasound images. A U-Net locates the suspicious region, and a CNN classifies the image as benign, malignant or normal.
 
-## 📸 Overview
+I built it as part of my work on medical imaging AI, with the aim of making a research model easy for clinicians and students to try without installing anything.
 
-The **Breast Ultrasound Diagnostic Assistant** is a medical imaging tool that:
+> **Research use only.** This tool is not a medical device and does not replace expert clinical evaluation.
 
-- ✅ Automatically **segments suspicious lesions** in ultrasound scans  
-- 🧪 Provides **diagnostic confidence scores** for:
-  - **Benign**
-  - **Malignant**
-  - **Normal** cases
-- 🖼️ Returns a **visual overlay** showing highlighted lesion areas in green
+## What it does
 
-> ⚠️ **Disclaimer**: This tool is intended for research and educational purposes only. It should not replace expert clinical evaluation.
+Given an ultrasound image, the app:
 
----
+1. Segments the suspicious lesion with a U-Net.
+2. Classifies the image with a CNN and reports a confidence score for each class: benign, malignant and normal.
+3. Returns an overlay with the lesion area highlighted in green, so the result can be checked visually.
 
-## 🚀 Features
+The interface also applies optional enhancement filters (contrast, sharpness and brightness) to make lesion boundaries easier to see.
 
-- 🔍 **Automatic Lesion Segmentation** using a trained U-Net model
-- 🧠 **Classification** using a robust Convolutional Neural Network (CNN)
-- 💡 Interactive UI built with **Gradio**
-- 🧪 Real-time predictions with confidence scores
-- 🌱 Includes enhancement filters to improve lesion visibility (contrast, sharpness, brightness)
-- 📁 Supports drag-and-drop and sample image gallery
+## Models
 
----
+| Task           | Architecture | Weights      | Input size |
+|----------------|--------------|--------------|------------|
+| Segmentation   | U-Net        | `unet.h5`    | 224 × 224  |
+| Classification | Custom CNN   | `cnn96.h5`   | 400 × 400  |
 
-## 📁 Example Output
+Both models are loaded from the Hugging Face Hub. The classes follow the BUSI (Breast Ultrasound Images) dataset.
 
-![Example Interface](https://user-images.githubusercontent.com/your-image-here.png)
+## Using the app
 
----
+1. Upload an ultrasound image, or choose one from the example gallery.
+2. Click **Analyze Image**.
+3. Read the class probabilities and inspect the lesion overlay.
 
-## 📦 Installation
+## Running it locally
 
-1. **Clone this repository**
+Clone the repository and install the dependencies:
 
 ```bash
-git clone https://github.com/yourusername/breast-ultrasound-assistant.git
-cd breast-ultrasound-assistant
-Install dependencies
-
-bash
-Copy
-Edit
 pip install -r requirements.txt
-Set your Hugging Face token
+```
 
-Export your Hugging Face token (for loading models):
+The main dependencies are TensorFlow, Gradio, OpenCV, Pillow, NumPy and `huggingface_hub`.
 
-bash
-Copy
-Edit
-export jehad=your_huggingface_token_here
-💡 You can generate a token from https://huggingface.co/settings/tokens
+The model weights are fetched from the Hub, so the app needs a Hugging Face access token. You can create one at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and expose it as an environment variable named `jehad`, which is the name `app.py` reads. Then start the app with `python app.py` and open the local address that Gradio prints.
 
-🧠 Model Information
-Model Type	Architecture	Purpose	Source
-Segmentation	U-Net	Lesion Highlight	unet.h5
-Classification	Custom CNN	Diagnosis	cnn96.h5
+## Project structure
 
-🧪 How It Works
-Input an ultrasound image
+```
+.
+├── app.py             # Gradio app and inference code
+├── example/           # Sample ultrasound images
+├── requirements.txt   # Python dependencies
+└── README.md
+```
 
-The U-Net model segments the breast region and highlights potential lesions
+## Customization
 
-The CNN model analyzes the segmented region and outputs diagnostic probabilities
+- **Models:** replace the `.h5` files with your own trained weights and update the loading code in `app.py`.
+- **Input sizes:** currently 224 × 224 for the U-Net and 400 × 400 for the CNN.
+- **Enhancement:** the filters (for example `fuzzy_enhancement` and `sharpness_enhancement`) can be changed or removed in `app.py`.
 
-Results are displayed with:
+## Troubleshooting
 
-Classification labels and confidence
+**The models fail to load.** Check that your Hugging Face token is valid and that it has access to the model repository.
 
-Enhanced lesion visualization overlay
+## Limitations
 
-🔧 File Structure
-bash
-Copy
-Edit
-├── app.py                     # Main Gradio app script
-├── example/                   # Folder containing example ultrasound scans
-├── requirements.txt           # Python dependencies
-├── README.md                  # Project documentation
-🖥️ Run Locally
-bash
-Copy
-Edit
-python app.py
-This will open the Gradio interface in your browser.
+- Trained and evaluated on BUSI, a relatively small public dataset; external validation on images from other scanners and centres is still needed.
+- Image quality, probe settings and operator technique can all affect results.
+- The overlay shows where the model found a lesion, not a clinical delineation.
 
-🧪 Sample Usage
-Upload your ultrasound image or click on a sample
+## License
 
-Click “Analyze Image”
+MIT.
 
-View classification results and lesion overlay
+## Acknowledgments
 
-💻 Dependencies
-tensorflow
+The BUSI dataset, the Hugging Face Hub, and the TensorFlow and Gradio open-source communities.
 
-gradio
+## Author
 
-opencv-python
-
-Pillow
-
-numpy
-
-huggingface_hub
-
-Install all dependencies via:
-
-bash
-Copy
-Edit
-pip install -r requirements.txt
-🛠️ Customization
-You can customize:
-
-Input size (currently 224x224 for U-Net, 400x400 for CNN)
-
-Model weights via Hugging Face Hub
-
-Enhancement techniques (fuzzy_enhancement, sharpness_enhancement, etc.)
-
-🙋 FAQ
-Q: What if models fail to load?
-A: Make sure your Hugging Face token is valid and you have access to the model repository.
-
-Q: Can I use my own models?
-A: Yes. Replace the .h5 files with your trained models and update the code accordingly.
-
-🤝 Acknowledgements
-BUSI Dataset (Breast Ultrasound Images)
-
-Hugging Face Model Hosting
-
-TensorFlow & Gradio open-source communities
-
-📜 License
-This project is licensed under the MIT License.
-
-👤 Author
-Developed by Jehad Cheyi
-Hugging Face Profile
-
-⭐️ Show Your Support
-If you found this project useful or interesting:
-
-🌟 Star the repository
-
-🍴 Fork it
-
-🧠 Use it in your research or classroome
+Jehad Cheyi, Duhok, Kurdistan Region of Iraq.
+[Hugging Face profile](https://huggingface.co/jehadcheyi)
